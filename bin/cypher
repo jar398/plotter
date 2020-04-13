@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 
-# This is an example API client program.  It invokes the `cypher`
-# service with parameters supplied on the command line.  Actual use of
-# the API could be as simple as the central HTTP request, which can be
-# done with wget or curl, or as complex as a translation to your
-# favorite programming language, as a module to be used in a larger
-# program.
+# *** This file was forked from eol/eol_website/doc/cypher.py 
+#     on 4/13/2020
+
+# This utility invokes the EOL `cypher` service with parameters
+# supplied on the command line.
 
 # To get this to work you may have to do the following, or equivalent:
 #   sudo apt-get install python3-pip

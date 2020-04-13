@@ -32,8 +32,8 @@ class Paginator
   # use neography, or the EOL web API, or any other method for
   # executing CQL queries.
 
-  def initialize(query_fn)
-    @query_fn = query_fn
+  def initialize(graph)
+    @graph = graph
   end
 
   # -----
@@ -114,7 +114,7 @@ class Paginator
           whole_query = whole_query + " SKIP #{skip}"
         end
         whole_query = whole_query + " LIMIT #{limit}"
-        result = run_query(whole_query)
+        result = @graph.run_query(whole_query)
         if result
           got = result["data"].length
           # The skip == 0 test is a kludge that fixes a bug where the
@@ -163,18 +163,6 @@ class Paginator
     path
   end
 
-  # Run a single CQL query using the method provided (could be
-  # neography, HTTP, ...)
-
-  def run_query(cql)
-    json = @query_fn.call(cql)
-    if json && json["data"].length > 100
-      # Throttle load on server
-      sleep(1)
-    end
-    json
-  end
-
   # Utility - convert native cypher output form to CSV
   def emit_csv(start, headings, path)
     # Sanity check the result
@@ -201,26 +189,4 @@ class Paginator
     FileUtils.mv temp, path
     path
   end
-
-  # A particular query method for doing queries using the EOL v3 API over HTTP
-
-  def self.query_via_http(server, token, cql)
-    # Need to be a web client.
-    # "The Ruby Toolbox lists no less than 25 HTTP clients."
-    escaped = CGI::escape(cql)
-    uri = URI("#{server}service/cypher?query=#{escaped}")
-    request = Net::HTTP::Get.new(uri)
-    request['Authorization'] = "JWT #{token}"
-    use_ssl = uri.scheme.start_with?("https")
-    response = Net::HTTP.start(uri.hostname, uri.port, :use_ssl => use_ssl) {|http|
-      http.request(request)
-    }
-    if response.is_a?(Net::HTTPSuccess)
-      JSON.parse(response.body)    # can return nil
-    else
-      STDERR.puts(response.body)
-      nil
-    end
-  end
-
 end

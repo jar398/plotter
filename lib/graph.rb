@@ -1,14 +1,20 @@
 
 class Graph
 
-  def initialize(server, token)
-    @query_fn = Proc.new {|cql| query_via_http(server, token, cql)}
+  def self.via_http(server, token)
+    Proc.new {|cql| query_via_http(cql, server, token)}
   end
 
-  # also stage_scp, stage_web
+  # Replace query_fn if desired with TraitBank::query(cql), some other
+  # call to neography, or to direct access to neo4j
+
+  def initialize(query_fn)
+    @query_fn = query_fn
+  end
+
+  # We also need stage_scp, stage_web if we're doing paged queries!
 
   def run_query(cql)
-    # TraitBank::query(cql)
     json = @query_fn.call(cql)
     if json && json["data"].length > 100
       # Throttle load on server
@@ -17,12 +23,12 @@ class Graph
     json
   end
 
-  # Copied from ../painter.rb
+  # Copied from painter.rb
 
   # A particular query method for doing queries using the EOL v3 API over HTTP
-  # CODE COPIED FROM traits_dumper.rb - we might want to factor this out...
+  # CODE FORKED FROM traits_dumper.rb ...
 
-  def self.query_via_http(server, token, cql)
+  def self.query_via_http(cql, server, token)
     # Need to be a web client.
     # "The Ruby Toolbox lists no less than 25 HTTP clients."
     escaped = CGI::escape(cql)
