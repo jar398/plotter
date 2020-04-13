@@ -8,3 +8,5 @@
 /spec/reports/
 /tmp/
 *.token
+Gemfile.lock
+config/secrets.yml
