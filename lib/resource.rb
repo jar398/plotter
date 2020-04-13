@@ -9,32 +9,70 @@ require 'csv'
 require 'net/http'
 require 'fileutils'
 require 'nokogiri'
+require 'yaml'
+require 'json'
 
+require_relative 'term'
 require_relative 'table'
-
-class Term
-  class << self
-    def vernacular_name; "http://rs.gbif.org/terms/1.0/VernacularName"; end
-    def vernacular_namestring; "http://rs.tdwg.org/dwc/terms/vernacularName"; end
-    def language; "http://purl.org/dc/terms/language"; end
-    def tnu_id; "http://rs.tdwg.org/dwc/terms/taxonID"; end
-    def tnu; "http://rs.tdwg.org/dwc/terms/Taxon"; end
-    def page_id; "http://eol.org/schema/EOLid"; end
-  end
-end
 
 class Resource
 
-  def initialize(id, repository_id)
-    @resource_id = id
-    @repository_id = repository_id
+  def initialize(workspace_root = nil)
+    @workspace_root = workspace_root || File.join(ENV['HOME'], ".reaper_workspace")
+    @config = nil
+  end
+
+  def get_config
+    @config ||= YAML.load(File.read("config/secrets.yml"))
+    @config
+  end
+
+  def bind_to_publishing(publishing_url, publishing_id = nil)
+    publishing_url ||= get_config["development"]["host"]["url"]
+    publishing_url += "/" unless publishing_url.end_with?("/")
+    @publishing_url = publishing_url
+    @publishing_id = publishing_id.to_i if publishing_id
+    @workspace = File.join(@workspace_root, @publishing_id.to_s)
+    puts "Publishing site is #{@publishing_url}, id is #{publishing_id || '?'}"
+  end
+
+  def bind_to_repository(repository_url, repository_id = nil)
+    repository_url ||= get_config["development"]["repository"]["url"]
+    repository_url += "/" unless repository_url.end_with?("/")
+
+    if repository_id
+      name = "?"
+    else
+      record = get_record(@publishing_id)
+      if record
+        name = record["name"]    
+        repository_id = record["repository_id"]
+      else
+        raise("Unknown resource #{repository_id}; REPOSITORY_ID must be specified") unless repository_id
+      end
+    end
+    puts("Resource #{@publishing_id}/#{repository_id || "?"} = #{name}")
+
+    @repository_id = repository_id.to_i if repository_id
+    @repository_url = repository_url
+    puts "Repository site is #{repository_url}, id is @{repository_id || '?'}"
+  end
+
+  def get_record(publishing_id)
+    # Get the resource record, if any, from the publisher's resource list
+    records = JSON.parse(Net::HTTP.get(URI.parse("#{@publishing_url}/resources.json")))
+    records_index = {}
+    records["resources"].each do |record|
+      id = record["id"].to_i
+      records_index[id] = record
+    end
+    records_index[publishing_id]
   end
 
   # Record a decision as to which opendata resource this resource
   # should be associated with.
-  def bind_to_opendata(url, opendata_cache)
-    @url = url
-    @workspace = File.join(opendata_cache, @resource_id.to_s)
+  def bind_to_opendata(url)
+    @archive_url = url
   end
 
   def map_to_page_id(tnu_id)
@@ -52,9 +90,9 @@ class Resource
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
 
-  def harvest(repository_url)
+  def harvest
     parse_manifest
-    get_page_id_map(repository_url)
+    get_page_id_map
 
     dir = File.join(@workspace, "publish")
     puts "Creating directory #{dir}"
@@ -78,12 +116,16 @@ class Resource
     # LOAD CSV WITH HEADERS FROM '#{url}' AS row ...
     # Need to do something just like what painter.rb does: chunk the
     # csv file, etc.
+    publish_vernaculars
+  end
+
+  def publish_vernaculars
     nil
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb parse
   def parse_manifest
-    html = noko_parse(@url)
+    html = noko_parse(@archive_url)
     archive_url = html.css('p.muted a').first['href']
     file = load_archive_if_needed(archive_url)
     dest = File.join(@workspace, "archive")
@@ -184,7 +226,7 @@ class Resource
   def load_archive_if_needed(archive_url)
     ext = 'tgz'
     ext = 'zip' if archive_url.match?(/zip$/)
-    path = File.join(@workspace, "#{@resource_id}.#{ext}")
+    path = File.join(@workspace, "#{@publishing_id}.#{ext}")
 
     # Reuse previous file only if URL matches
     file_holding_url = File.join(@workspace, "archive_url")
@@ -218,20 +260,20 @@ class Resource
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb
-  def noko_parse(url)
+  def noko_parse(archive_url)
     require 'open-uri'
     begin
-      raw = open(url)
+      raw = open(archive_url)
     rescue Net::ReadTimeout => e
       fail_with(e)
     end
-    fail_with(Exception.new('URL returned empty result.')) if raw.nil?
+    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
     Nokogiri::HTML(raw)
   end
 
   # Cache the resource's resource_pk to page id map in memory
 
-  def get_page_id_map(repository_url)
+  def get_page_id_map
     return @page_id_map if @page_id_map
 
     page_id_map = {}
@@ -247,9 +289,7 @@ class Resource
         page_id_map[row[tnu_id_column]] = row[page_id_column].to_i
       end
     else
-      repository_url += "/" unless repository_url.end_with?("/")
-
-      STDERR.puts "Getting page ids for #{@repository_id} from #{repository_url}"
+      STDERR.puts "Getting page ids for #{@repository_id} from #{@repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
       # using the web service; put it in a hash for easy lookup.
@@ -257,11 +297,10 @@ class Resource
 
       # e.g. https://beta-repo.eol.org/service/page_id_map/600
 
-      service_url = "#{repository_url}service/page_id_map/#{@repository_id}"
+      service_url = "#{@repository_url}service/page_id_map/#{@repository_id}"
       STDERR.puts "Request URL = #{service_url}"
 
       service_uri = URI(service_url)
-      use_ssl = (service_uri.scheme == 'https')
 
       limit = 100000
       skip = 0
@@ -269,13 +308,17 @@ class Resource
 
       loop do
         count = 0
+        use_ssl = (service_uri.scheme == 'https')
+
+        # Wait, what about %-escaping ????
+        path_and_query = "#{service_uri.path}?#{service_uri.query}&limit=#{limit}&skip=#{skip}"
+
         Net::HTTP.start(service_uri.host, service_uri.port, :use_ssl => use_ssl) do |http|
-          pq = "#{service_uri.path}?#{service_uri.query}&limit=#{limit}&skip=#{skip}"
-          # STDERR.puts pq
-          response = http.request_get(pq , {"Accept:" => "text/csv"})
+          response = http.request_get(path_and_query, {"Accept:" => "text/csv"})
           STDERR.puts response.body if response.code != '200'
           # Raise error if not success (poorly named method)
           response.value
+
           CSV.parse(response.body, headers: true) do |row|
             count += 1
             all += 1
