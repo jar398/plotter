@@ -1,2 +1,4 @@
 # reaper
-Utilities for updating an EOL graphdb
+
+EOL related utilities
+
