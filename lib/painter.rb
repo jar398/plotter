@@ -49,47 +49,7 @@ require_relative 'paginator'
 
 class Painter
 
-  START_TERM = "https://eol.org/schema/terms/starts_at"
-  STOP_TERM  = "https://eol.org/schema/terms/stops_at"
   LIMIT = 1000000
-
-  def self.main
-    server = ENV['SERVER'] || "https://beta.eol.org/"
-    token = ENV['TOKEN'] || STDERR.puts("** No TOKEN provided")
-    painter = new(Graph.new(Graph.via_http(server, token)))
-
-    command = ENV["COMMAND"]
-    if ENV.key?("ID")
-      publishing_id = Integer(ENV["ID"])
-    else
-      publishing_id = @testing_resource
-    end
-
-    resource = Resource.new
-    resource.bind_to_publishing(server, publishing_id)
-    resource.bind_to_stage(ENV['STAGE_WEB_LOCATION'],
-                           ENV['STAGE_SCP_LOCATION'])
-
-    # Command dispatch
-    case command
-    when "directives" then
-      painter.show_directives(resource)
-    when "qc" then
-      painter.qc(resource)
-    when "infer" then    # list the inferences to file
-      painter.infer(resource)
-    when "merge" then    # assert the inferences from file
-      painter.merge(resource)
-    when "paint" then    # assert the inferences directly
-      painter.paint(resource)
-    when "count" then    # remove the inferences
-      painter.count(resource)
-    when "clean" then    # remove the inferences
-      painter.clean(resource)
-    else
-      painter.debug(command, resource)
-    end
-  end
 
   def initialize(graph)
     @graph = graph
@@ -103,8 +63,8 @@ class Painter
   def show_directives(resource)
     STDERR.puts("Directives:")
     puts("trait,which,page_id,canonical")
-    show_stxx_directives(resource, START_TERM, "Start")
-    show_stxx_directives(resource, STOP_TERM, "Stop")
+    show_stxx_directives(resource, Term.starts_at, "Start")
+    show_stxx_directives(resource, Term.stops_at, "Stop")
   end
 
   def show_stxx_directives(resource, uri, tag)
@@ -176,20 +136,20 @@ class Painter
   # (i.e. have parents), and every stop is under some start
 
   def qc(resource)
-    qc_presence(resource, START_TERM, "start")
-    qc_presence(resource, STOP_TERM, "stop")
+    qc_presence(resource, Term.starts_at, "start")
+    qc_presence(resource, Term.stops_at, "stop")
 
     # Make sure every stop point is under some start point
     r = run_query("MATCH (r:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                          (t:Trait)-[:metadata]->
                          (m2:MetaData)-[:predicate]->
-                         (:Term {uri: '#{STOP_TERM}'})
+                         (:Term {uri: '#{Term.stops_at}'})
                    WITH t, #{cast_page_id('m2')} AS stop_id
                    MATCH (stop:Page {page_id: stop_id})
                    OPTIONAL MATCH 
                          (t)-[:metadata]->
                          (m1:MetaData)-[:predicate]->
-                         (:Term {uri: '#{START_TERM}'})
+                         (:Term {uri: '#{Term.starts_at}'})
                    WITH t, stop_id, #{cast_page_id('m1')} AS start_id
                    MATCH (start:Page {page_id: start_id})
                    OPTIONAL MATCH (stop)-[z:parent*1..]->(start)
@@ -227,6 +187,18 @@ class Painter
         end
       end
     end
+  end
+
+  def inferences_dir(resource)
+    resource.workspace_dir("inferences")
+  end
+
+  def inferences_path(resource, name)
+    File.join(inferences_dir(resource), name)
+  end
+
+  def temp_path(resource, name)
+    File.join(resource.workspace_dir("inferences.tmp"), name)
   end
 
   # Dry run - find all inferences that would be made by branch
@@ -316,16 +288,42 @@ class Painter
     end
   end
 
-  def inferences_dir(resource)
-    resource.workspace_dir("inferences")
-  end
+  # Run the two cypher commands (RETURN for "infer" operation; MERGE
+  # and DELETE for "paint")
 
-  def inferences_path(resource, name)
-    File.join(inferences_dir(resource), name)
-  end
+  def paint_or_infer(resource, merge, delete, skipping)
+    # Propagate traits from start point to descendants.  Filter by resource.
+    # Currently assumes the painted trait has an object_term, but this
+    # should be generalized to allow measurement as well
+    query =
+      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
+                (t:Trait)-[:metadata]->
+                (m:MetaData)-[:predicate]->
+                (:Term {uri: '#{Term.starts_at}'})
+          OPTIONAL MATCH (t)-[:object_term]->(o:Term)
+          WITH t, #{cast_page_id('m')} as start_id, o
+          MATCH (:Page {page_id: start_id})<-[:parent*1..]-(d:Page)
+    #{merge}"
+    STDERR.puts(query)
+    assert_path = 
+      run_chunked_query(query, @pagesize, temp_path(resource, "assert.csv"))
+    return unless assert_path
 
-  def temp_path(resource, name)
-    File.join(resource.workspace_dir("inferences.tmp"), name)
+    # Erase inferred traits from stop point to descendants.
+    query = 
+      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
+                (t:Trait)-[:metadata]->
+                (m:MetaData)-[:predicate]->
+                (:Term {uri: '#{Term.stops_at}'})
+          WITH t, #{cast_page_id('m')} as stop_id
+          MATCH (stop:Page {page_id: stop_id})
+          WITH stop, t
+          MATCH (stop)<-[:parent*0..]-(d:Page)
+    #{delete}"
+    STDERR.puts(query)
+    retract_path =
+      run_chunked_query(query, @pagesize, temp_path(resource, "retract.csv"), skipping)
+    [assert_path, retract_path]
   end
 
   # Push chunks for inferences file out to the staging server, so that
@@ -375,78 +373,6 @@ class Painter
       end
       STDERR.puts("Merged #{count} relations from #{chunk_url}")
     end
-  end
-
-  def merge(resource)
-    base_dir = "infer-#{resource.to_s}"
-    net_path = File.join(base_dir, "inferences.csv")
-    chunks_path = net_path + ".chunks"
-    d = Dir.new(chunks_path)  # dir would have been created already, by infer
-    d.each do |name|
-      next unless name.end_with? ".csv"
-      long_name = "#{base_dir}=#{name}"
-      chunk_path = File.join(chunks_path, name)    # local
-      # don't bother creating a directory on the server, too lazy to figure out
-      scp_target = "#{stage_scp}#{long_name}"
-      url = "#{resource.stage_url}#{long_name}"    #no need to escape
-      # Need to move this file to some server so EOL can access it.
-      STDERR.puts("Copying #{chunk_path} to #{scp_target}")
-      stdout_string, status = Open3.capture2("rsync -p #{chunk_path} #{scp_target}")
-      # row will have strings, but page ids are integers.
-      query = "LOAD CSV WITH HEADERS FROM '#{url}'
-               AS row
-               WITH row, toInteger(row.page_id) AS page_id
-               MATCH (page:Page {page_id: page_id})
-               MATCH (trait:Trait {eol_pk: row.trait})
-               MERGE (page)-[i:inferred_trait]->(trait)
-               RETURN COUNT(i) 
-               LIMIT 1"
-      r = run_query(query)
-      if r
-        count = r["data"][0]
-      else
-        count = 0
-      end
-      STDERR.puts("Merged #{count} relations from #{url}")
-    end
-  end
-
-  # Run the two cypher commands (RETURN for "infer" operation; MERGE
-  # and DELETE for "paint")
-
-  def paint_or_infer(resource, merge, delete, skipping)
-    # Propagate traits from start point to descendants.  Filter by resource.
-    # Currently assumes the painted trait has an object_term, but this
-    # should be generalized to allow measurement as well
-    query =
-      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
-                (t:Trait)-[:metadata]->
-                (m:MetaData)-[:predicate]->
-                (:Term {uri: '#{START_TERM}'})
-          OPTIONAL MATCH (t)-[:object_term]->(o:Term)
-          WITH t, #{cast_page_id('m')} as start_id, o
-          MATCH (:Page {page_id: start_id})<-[:parent*1..]-(d:Page)
-    #{merge}"
-    STDERR.puts(query)
-    assert_path = 
-      run_chunked_query(query, @pagesize, temp_path(resource, "assert.csv"))
-    return unless assert_path
-
-    # Erase inferred traits from stop point to descendants.
-    query = 
-      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
-                (t:Trait)-[:metadata]->
-                (m:MetaData)-[:predicate]->
-                (:Term {uri: '#{STOP_TERM}'})
-          WITH t, #{cast_page_id('m')} as stop_id
-          MATCH (stop:Page {page_id: stop_id})
-          WITH stop, t
-          MATCH (stop)<-[:parent*0..]-(d:Page)
-    #{delete}"
-    STDERR.puts(query)
-    retract_path =
-      run_chunked_query(query, @pagesize, temp_path(resource, "retract.csv"), skipping)
-    [assert_path, retract_path]
   end
 
   # For long-running queries (writes to path).  Return value if path
@@ -522,10 +448,10 @@ class Painter
     z.each do |row|
       page_id = Integer(row[:page])
       if row.key?(:stop)
-        add_directive(page_id, row[:stop], STOP_TERM, :stop, resource)
+        add_directive(page_id, row[:stop], Term.stops_at, :stop, resource)
       end
       if row.key?(:start)
-        add_directive(page_id, row[:start], START_TERM, :start, resource)
+        add_directive(page_id, row[:start], Term.starts_at, :start, resource)
       end
     end
   end
