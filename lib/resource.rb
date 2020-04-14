@@ -135,6 +135,23 @@ class Resource
 
   end
 
+  # Copy the publish/ directory out to the staging host
+  def stage(dir_name = "publish")
+    local_publish_path = File.join(@workspace, dir_name)
+    Dir.glob("*.chunks", base: local_publish_path).each do |chunks_dir_name|
+      local_chunks_path = File.join(local_publish_path, chunks_dir_name)
+      # Write the chunks list to a file for benefit of publishing
+      man = File.join(local_chunks_path, "manifest.json")
+      puts "Writing #{man}"
+      File.write(man, JSON.generate(Dir.glob("*.csv", base: local_chunks_path)))
+    end
+    stage_publish_path = "#{stage_scp}#{publishing_id.to_s}-#{dir_name}"
+    STDERR.puts("Copying #{local_publish_path} to #{stage_publish_path}")
+    stdout_string, status = Open3.capture2("rsync -va #{local_publish_path}/ #{stage_publish_path}/")
+    puts "Status: [#{status}] stdout: [#{stdout_string}]"
+  end
+
+
   # Similar to eol_website app/models/trait_bank/slurp.rb
   def publish
     #   Use two LOAD CSV commands to move information from the

@@ -348,6 +348,10 @@ class Painter
   #  2. The way to refer to the server directory using http
 
   def publish(resource)
+    resource.stage("inferences")
+  end
+
+  def publish_old(resource)
     # Get the manifest
     infer_base_url = "#{resource.stage_url}#{resource.publishing_id.to_s}-inferences/inferences.csv.chunks/"
     chunks = JSON.parse(Net::HTTP.get(URI(infer_base_url + "manifest.json")))
