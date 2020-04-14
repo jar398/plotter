@@ -12,9 +12,7 @@ namespace :paint do
     resource.bind_to_publishing(ENV['SERVER'],
                                 ENV['ID'] || testing_resource,
                                 ENV['TOKEN'])
-    p = Painter.new(resource.graph)
-    p.count(resource)
-    false
+    Painter.new(resource.graph).count(resource)
   end
 
   desc 'a b c d'
