@@ -2,6 +2,7 @@
 class Graph
 
   def self.via_http(server, token)
+    raise("Token not supplied") unless token
     Proc.new {|cql| query_via_http(cql, server, token)}
   end
 

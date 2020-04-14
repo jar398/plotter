@@ -23,7 +23,7 @@
 # . SERVER - the http server for an EOL web app instance, used for its
 #      cypher service.  E.g. "https://eol.org/"
 # . TOKEN - API token to be used with SERVER
-# . RESOURCE - the resource id of the resource to be painted
+# . RESOURCE - the publishing id of the resource to be painted
 
 # For example:
 #
@@ -56,17 +56,19 @@ class Painter
   def self.main
     server = ENV['SERVER'] || "https://beta.eol.org/"
     token = ENV['TOKEN'] || STDERR.puts("** No TOKEN provided")
-    stage_scp = ENV['STAGE_SCP_LOCAtiON'] || "varela:public_html/tmp/"
+    stage_scp = ENV['STAGE_SCP_LOCATION'] || "varela:public_html/tmp/"
     stage_web = ENV['STAGE_WEB_LOCATION'] || "http://varela.csail.mit.edu/~jar/tmp/"
-    query_fn = Proc.new {|cql| query_via_http(server, token, cql)}
-    painter = new(query_fn)
+    painter = new(Graph.new(Graph.via_http(server, token)))
 
     command = ENV["COMMAND"]
     if ENV.key?("RESOURCE")
-      resource = Integer(ENV["RESOURCE"])
+      publishing_id = Integer(ENV["ID"])
     else
-      resource = @testing_resource
+      publishing_id = @testing_resource
     end
+
+    resource = Resource.new
+    resource.bind_to_publishing(server, publishing_id)
 
     # Command dispatch
     case command
@@ -89,9 +91,9 @@ class Painter
     end
   end
 
-  def initialize(query_fn)
-    @query_fn = query_fn
-    @paginator = Paginator.new(query_fn)
+  def initialize(graph)
+    @graph = graph
+    @paginator = Paginator.new(graph)
     @pagesize = 10000
   end
 
@@ -108,7 +110,7 @@ class Painter
   def show_stxx_directives(resource, uri, tag)
     r = run_query(
       "WITH '#{tag}' AS tag
-         MATCH (r:Resource {resource_id: #{resource}})<-[:supplier]-
+         MATCH (r:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                (t:Trait)-[:metadata]->
                (m:MetaData)-[:predicate]->
                (:Term {uri: '#{uri}'}),
@@ -145,7 +147,7 @@ class Painter
   # Remove all of a resource's inferred trait assertions
 
   def clean(resource)
-    r = run_query("MATCH (:Resource {resource_id: #{resource}})<-[:supplier]-
+    r = run_query("MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
                    DELETE r
@@ -159,7 +161,7 @@ class Painter
   # Display count of a resource's inferred trait assertions
 
   def count(resource)
-    r = run_query("MATCH (:Resource {resource_id: #{resource}})<-[:supplier]-
+    r = run_query("MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
                    RETURN COUNT(*)
@@ -178,7 +180,7 @@ class Painter
     qc_presence(resource, STOP_TERM, "stop")
 
     # Make sure every stop point is under some start point
-    r = run_query("MATCH (r:Resource {resource_id: #{resource}})<-[:supplier]-
+    r = run_query("MATCH (r:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                          (t:Trait)-[:metadata]->
                          (m2:MetaData)-[:predicate]->
                          (:Term {uri: '#{STOP_TERM}'})
@@ -355,7 +357,7 @@ class Painter
   end
 
   # Do branch painting
-  # Probably a good idea to precede this with `rm -r paint-{resource}`
+  # Probably a good idea to precede this with `rm -r paint-{resource.publishing_id}`
   # - At present this method doesn't work because paged deletion
   #   doesn't work.  Delete this method if it can be
   #   determined likely that paged deletion will never work.
@@ -384,7 +386,7 @@ class Painter
     # Currently assumes the painted trait has an object_term, but this
     # should be generalized to allow measurement as well
     query =
-      "MATCH (:Resource {resource_id: #{resource}})<-[:supplier]-
+      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                 (t:Trait)-[:metadata]->
                 (m:MetaData)-[:predicate]->
                 (:Term {uri: '#{START_TERM}'})
@@ -399,7 +401,7 @@ class Painter
 
     # Erase inferred traits from stop point to descendants.
     query = 
-      "MATCH (:Resource {resource_id: #{resource}})<-[:supplier]-
+      "MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
                 (t:Trait)-[:metadata]->
                 (m:MetaData)-[:predicate]->
                 (:Term {uri: '#{STOP_TERM}'})
@@ -418,52 +420,13 @@ class Painter
   # on success, nil on failure.
 
   def run_chunked_query(cql, pagesize, path, skipping=true)
-    Paginator.new(@query_fn).supervise_query(cql, nil, pagesize, path, skipping)
+    Paginator.new(@graph).supervise_query(cql, nil, pagesize, path, skipping)
   end
 
   # For small / debugging queries
 
   def run_query(cql)
-    # TraitBank::query(cql)
-    json = @query_fn.call(cql)
-    if json && json["data"].length > 100
-      # Throttle load on server
-      sleep(1)
-    end
-    json
-  end
-
-  # A particular query method for doing queries using the EOL v3 API over HTTP
-  # CODE COPIED FROM traits_dumper.rb - we might want to factor this out...
-
-  def self.query_via_http(server, token, cql)
-    # Need to be a web client.
-    # "The Ruby Toolbox lists no less than 25 HTTP clients."
-    escaped = CGI::escape(cql)
-    # TBD: Ought to do GET if query is effectless.
-    uri = URI("#{server}service/cypher?query=#{escaped}")
-    use_ssl = (uri.scheme == "https")
-    Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl) do |http|
-      request = Net::HTTP::Post.new(uri)
-      request['Authorization'] = "JWT #{token}"
-      response = http.request(request)
-      if response.is_a?(Net::HTTPSuccess)
-        JSON.parse(response.body)    # can return nil
-      else
-        STDERR.puts("** HTTP response: #{response.code} #{response.message}")
-        if response.code >= '300' && response.code < '400'
-          STDERR.puts("** Location: #{response["Location"]}")
-        end
-        # Ideally we'd print only those lines that have useful 
-        # information (error message and backtrace).
-        # /home/jar/g/eol_website/lib/painter.rb:297:in `block in merge': 
-        #     undefined method `[]' for nil:NilClass (NoMethodError)
-        #   from /home/jar/g/eol_website/lib/painter.rb:280:in `each'
-        STDERR.puts(cql)
-        STDERR.puts(response.body)
-        nil
-      end
-    end
+    @graph.run_query(cql)
   end
 
   # ------------------------------------------------------------------
@@ -548,11 +511,11 @@ class Painter
 
   def add_directive(page_id, trait_id, pred, tag, resource)
     # Pseudo-trait id unique only within resource
-    directive_eol_pk = "R#{resource}-BP#{tag}.#{page_id}.#{trait_id}"
+    directive_eol_pk = "R#{resource.publishing_id}-BP#{tag}.#{page_id}.#{trait_id}"
     # Add when schema permits: object_page_id: #{page_id},
     r = run_query(
       "MATCH (t:Trait {resource_pk: '#{trait_id}'})-[:supplier]->
-             (r:Resource {resource_id: #{resource}})
+             (r:Resource {resource_id: #{resource.publishing_id}})
        MERGE (pred:Term {uri: '#{pred}'})
        MERGE (m:MetaData {eol_pk: '#{directive_eol_pk}',
                           measurement: '#{page_id}'})
@@ -592,7 +555,7 @@ class Painter
 
     # Show the resource
     r = run_query(
-      "MATCH (r:Resource {resource_id: #{resource}})
+      "MATCH (r:Resource {resource_id: #{resource.publishing_id}})
        RETURN r.resource_id
        LIMIT 100")
     r["data"].map{|row| puts "  Resource: #{row}\n"}
@@ -600,7 +563,7 @@ class Painter
     # Show all traits for test resource, with their pages
     r = run_query(
       "MATCH (t:Trait)-[:supplier]->
-             (:Resource {resource_id: #{resource}}),
+             (:Resource {resource_id: #{resource.publishing_id}}),
              (t)-[:predicate]->(pred:Term)
        OPTIONAL MATCH (p:Page)-[:trait]->(t)
        RETURN t.eol_pk, t.resource_pk, pred.name, p.page_id
@@ -611,7 +574,7 @@ class Painter
     r = run_query(
         "MATCH (m:MetaData)<-[:metadata]-
                (t:Trait)-[:supplier]->
-               (r:Resource {resource_id: #{resource}}),
+               (r:Resource {resource_id: #{resource.publishing_id}}),
                (m)-[:predicate]->(pred:Term)
          RETURN t.resource_pk, pred.uri, #{cast_page_id('m')}
          LIMIT 100")
@@ -621,7 +584,7 @@ class Painter
     r = run_query(
      "MATCH (p:Page)
             -[:inferred_trait]->(t:Trait)
-            -[:supplier]->(:Resource {resource_id: #{resource}}),
+            -[:supplier]->(:Resource {resource_id: #{resource.publishing_id}}),
             (q:Page)-[:trait]->(t)
       RETURN p.page_id, q.page_id, t.resource_pk, t.predicate
       LIMIT 100")
@@ -650,7 +613,7 @@ class Painter
        // LIMIT")
     # Create silly resource
     run_query(
-      "MERGE (:Resource {resource_id: #{resource}})
+      "MERGE (:Resource {resource_id: #{resource.publishing_id}})
       // LIMIT")
     # Create silly predicate
     run_query(
@@ -660,16 +623,16 @@ class Painter
     # Create trait to be painted
     r = run_query(
       "MATCH (p2:Page {page_id: #{page_origin+2}}),
-             (r:Resource {resource_id: #{resource}}),
+             (r:Resource {resource_id: #{resource.publishing_id}}),
              (pred:Term {uri: '#{TESTING_TERM}'})
        RETURN p2.page_id, r.resource_id, pred.name
        LIMIT 10")
     STDERR.puts("Found: #{r["data"]}")
     run_query(
       "MATCH (p2:Page {page_id: #{page_origin+2}}),
-             (r:Resource {resource_id: #{resource}}),
+             (r:Resource {resource_id: #{resource.publishing_id}}),
              (pred:Term {uri: '#{TESTING_TERM}'})
-       MERGE (t2:Trait {eol_pk: 'tt_2_in_resource_#{resource}',
+       MERGE (t2:Trait {eol_pk: 'tt_2_in_resource_#{resource.publishing_id}',
                         resource_pk: 'tt_2', 
                         measurement: 'value of trait'})
        MERGE (t2)-[:predicate]->(pred)
@@ -687,7 +650,7 @@ class Painter
     z = run_query(
       "MATCH (m:MetaData)<-[:metadata]-
              (:Trait)-[:supplier]->
-             (:Resource {resource_id: #{resource}})
+             (:Resource {resource_id: #{resource.publishing_id}})
        WITH m, m.eol_pk AS n
        DETACH DELETE m
        RETURN n
@@ -698,7 +661,7 @@ class Painter
     # :inferred_trait, and :supplier relationships)
     z = run_query(
       "MATCH (t:Trait)
-             -[:supplier]->(:Resource {resource_id: #{resource}})
+             -[:supplier]->(:Resource {resource_id: #{resource.publishing_id}})
        WITH t, t.eol_pk AS n
        DETACH DELETE t
        RETURN n
@@ -716,7 +679,7 @@ class Painter
 
     # Get rid of the resource node itself
     z = run_query(
-      "MATCH (r:Resource {resource_id: #{resource}})
+      "MATCH (r:Resource {resource_id: #{resource.publishing_id}})
        WITH r, r.resource_id AS n
        DETACH DELETE r
        RETURN n

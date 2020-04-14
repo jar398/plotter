@@ -72,7 +72,7 @@ For example:
     export STAGE_SCP_LOCATION="varela:public_html/tmp/"
     export STAGE_WEB_LOCATION="http://varela.csail.mit.edu/~jar/tmp/"
 
-    RESOURCE=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
+    ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
 
 The ordinary sequence of operations would be:
 

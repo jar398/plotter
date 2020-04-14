@@ -27,13 +27,39 @@ class Resource
     @config
   end
 
-  def bind_to_publishing(publishing_url, publishing_id = nil)
+  def bind_to_stage(stage_scp, stage_web)
+    @stage_scp = stage_scp || "varela:public_html/tmp/"
+    @stage_web = stage_web || "http://varela.csail.mit.edu/~jar/tmp/"
+    @stage_scp += "/" unless @stage_scp.end_with?("/")
+    @stage_web += "/" unless @stage_web.end_with?("/")
+  end
+
+  def bind_to_publishing(publishing_url, publishing_id = nil, token)
     publishing_url ||= get_config["development"]["host"]["url"]
     publishing_url += "/" unless publishing_url.end_with?("/")
     @publishing_url = publishing_url
     @publishing_id = publishing_id.to_i if publishing_id
     @workspace = File.join(@workspace_root, @publishing_id.to_s)
+
+    if token
+      query_fn = Graph.via_http(publishing_url, token)
+      @graph = Graph.new(query_fn)
+    end
+
     puts "Publishing site is #{@publishing_url}, id is #{publishing_id || '?'}"
+  end
+
+  def graph
+    raise("No graph, probably because no token") unless @graph
+    @graph
+  end
+
+  def publishing_id
+    @publishing_id
+  end
+
+  def publishing_url
+    @publishing_url
   end
 
   def bind_to_repository(repository_url, repository_id = nil)
