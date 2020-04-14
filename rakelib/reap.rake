@@ -10,11 +10,25 @@ namespace :reap do
     resource.harvest
   end
 
-  task :vernaculars do
+  task :stage do
     resource = Resource.new(ENV['WORKSPACE_ROOT'])
     resource.bind_to_publishing(ENV['PUBLISH'], ENV['ID'])
-    resource.bind_to_stage(ENV['STAGE_SCP_LOCATION'],
-                           ENV['STAGE_WEB_LOCATION'])
-    resource.publish_vernaculars
+    resource.bind_to_stage(nil, ENV['STAGE_SCP_LOCATION'])
+    resource.stage
+  end
+
+  task :erase do
+    resource = Resource.new(ENV['WORKSPACE_ROOT'])
+    resource.bind_to_publishing(ENV['PUBLISH'], ENV['ID'], ENV['TOKEN'])
+    resource.bind_to_stage(ENV['STAGE_WEB_LOCATION'])
+    resource.erase
+  end
+
+  task :publish do
+    resource = Resource.new(ENV['WORKSPACE_ROOT'])
+    resource.bind_to_publishing(ENV['PUBLISH'], ENV['ID'], ENV['TOKEN'])
+    resource.bind_to_stage(ENV['STAGE_WEB_LOCATION'])
+    resource.publish
   end
 end
+

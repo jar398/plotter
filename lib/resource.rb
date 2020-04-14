@@ -37,7 +37,7 @@ class Resource
   def stage_scp; @stage_scp; end
   def stage_url; @stage_url; end
 
-  def bind_to_publishing(publishing_url, publishing_id = nil, token)
+  def bind_to_publishing(publishing_url, publishing_id = nil, token = nil)
     publishing_url ||= get_config["development"]["host"]["url"]
     publishing_url += "/" unless publishing_url.end_with?("/")
     @publishing_url = publishing_url
@@ -135,22 +135,33 @@ class Resource
 
   end
 
-  # Copy the publish/ directory out to the staging host
+  # Copy the publish/ directory out to the staging host.
+  # dir_name specifies a subdirector of the workspace.
+
   def stage(dir_name = "publish")
     local_publish_path = File.join(@workspace, dir_name)
-    Dir.glob("*.chunks", base: local_publish_path).each do |chunks_dir_name|
-      local_chunks_path = File.join(local_publish_path, chunks_dir_name)
-      # Write the chunks list to a file for benefit of publishing
-      man = File.join(local_chunks_path, "manifest.json")
-      puts "Writing #{man}"
-      File.write(man, JSON.generate(Dir.glob("*.csv", base: local_chunks_path)))
-    end
+    prepare_manifests(local_publish_path)
     stage_publish_path = "#{stage_scp}#{publishing_id.to_s}-#{dir_name}"
     STDERR.puts("Copying #{local_publish_path} to #{stage_publish_path}")
     stdout_string, status = Open3.capture2("rsync -va #{local_publish_path}/ #{stage_publish_path}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
   end
 
+  # For each directory in a tree, write a manifest.json that lists the
+  # files in the directory.  This makes the tree traversable from by a
+  # web client.
+
+  def prepare_manifests(path)
+    if File.directory?(path)
+      # Prepare one manifest
+      names = Dir.glob("*", base: path)
+      man = File.join(path, "manifest.json")
+      puts "Writing #{man}"
+      File.write(man, names)
+      # Recur
+      names.each {|name| prepare_manifests(File.join(path, name))}
+    end
+  end
 
   # Similar to eol_website app/models/trait_bank/slurp.rb
   def publish
@@ -165,8 +176,38 @@ class Resource
     publish_vernaculars
   end
 
+  def erase
+    erase_vernaculars
+  end
+
+  def erase_vernaculars
+    query = "MATCH (v:Vernacular {resource_id: #{publishing_id}})
+             DETACH DELETE v
+             RETURN COUNT(v)
+             LIMIT 10000000"
+    r = @graph.run_query(query)
+    count = r ? r["data"][0][0] : 0
+    STDERR.puts("Erased #{count} relationships")
+  end
+
+  def publish
+    publish_vernaculars
+  end
+
   def publish_vernaculars
-    nil
+    url = "#{stage_url}#{publishing_id.to_s}-publish/vernaculars.csv"
+    query = "LOAD CSV WITH HEADERS FROM '#{url}'
+             AS row
+             WITH row, toInteger(row.page_id) AS page_id
+             MERGE (p:Page {page_id: page_id})-[:vernacular]->
+                   (:Vernacular {namestring: row.namestring,
+                                 language: row.language,
+                                 resource_id: #{publishing_id}})
+             RETURN COUNT(row)
+             LIMIT 1"
+    r = @graph.run_query(query)
+    count = r ? r["data"][0][0] : 0
+    STDERR.puts("Merged #{count} relationships from #{url}")
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb parse
