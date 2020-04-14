@@ -56,12 +56,10 @@ class Painter
   def self.main
     server = ENV['SERVER'] || "https://beta.eol.org/"
     token = ENV['TOKEN'] || STDERR.puts("** No TOKEN provided")
-    stage_scp = ENV['STAGE_SCP_LOCATION'] || "varela:public_html/tmp/"
-    stage_web = ENV['STAGE_WEB_LOCATION'] || "http://varela.csail.mit.edu/~jar/tmp/"
     painter = new(Graph.new(Graph.via_http(server, token)))
 
     command = ENV["COMMAND"]
-    if ENV.key?("RESOURCE")
+    if ENV.key?("ID")
       publishing_id = Integer(ENV["ID"])
     else
       publishing_id = @testing_resource
@@ -69,6 +67,8 @@ class Painter
 
     resource = Resource.new
     resource.bind_to_publishing(server, publishing_id)
+    resource.bind_to_stage(ENV['STAGE_WEB_LOCATION'],
+                           ENV['STAGE_SCP_LOCATION'])
 
     # Command dispatch
     case command
@@ -79,7 +79,7 @@ class Painter
     when "infer" then    # list the inferences to file
       painter.infer(resource)
     when "merge" then    # assert the inferences from file
-      painter.merge(resource, stage_scp, stage_web)
+      painter.merge(resource)
     when "paint" then    # assert the inferences directly
       painter.paint(resource)
     when "count" then    # remove the inferences
@@ -233,14 +233,12 @@ class Painter
   # painting, and put them in a file for review
 
   def infer(resource)
-    base_dir = "infer-#{resource.to_s}"
-
     # Run the two queries
     (assert_path, retract_path) =
       paint_or_infer(resource,
                      "RETURN d.page_id AS page, t.eol_pk AS trait, d.canonical, t.measurement, o.name",
                      "RETURN d.page_id AS page, t.eol_pk AS trait",
-                     base_dir, true)
+                     true)
 
     # We'll start by filling the inferences list with the assertions
     # (start point descendants), then remove the retractions
@@ -277,7 +275,7 @@ class Painter
       STDERR.puts("No stop-point descendants to remove")
     end
 
-    net_path = File.join(base_dir, "inferences.csv")
+    net_path = inferences_path(resource, "inferences.csv")
 
     # Write net inferences as single CSV (optional)
     STDERR.puts("Net: #{inferences.size} inferences")
@@ -318,11 +316,68 @@ class Painter
     end
   end
 
+  def inferences_dir(resource)
+    resource.workspace_dir("inferences")
+  end
+
+  def inferences_path(resource, name)
+    File.join(inferences_dir(resource), name)
+  end
+
+  def temp_path(resource, name)
+    File.join(resource.workspace_dir("inferences.tmp"), name)
+  end
+
+  # Push chunks for inferences file out to the staging server, so that
+  # they it be used with LOAD CSV.
+
+  def stage(resource)
+    local_infer_path = inferences_dir(resource)
+    Dir.glob("*.chunks", base: local_infer_path).each do |chunks_dir_name|
+      local_chunks_path = File.join(local_infer_path, chunks_dir_name)
+      # Write the chunks list to a file for benefit of publishing
+      man = File.join(local_chunks_path, "manifest.json")
+      puts "Writing #{man}"
+      File.write(man, JSON.generate(Dir.glob("*.csv", base: local_chunks_path)))
+    end
+    stage_infer_path = "#{resource.stage_scp}#{resource.publishing_id.to_s}-inferences"
+    STDERR.puts("Copying #{local_infer_path} to #{stage_infer_path}")
+    stdout_string, status = Open3.capture2("rsync -va #{local_infer_path}/ #{stage_infer_path}/")
+  end
+
   # Need to know:
   #  1. The way to refer to the server directory using scp
   #  2. The way to refer to the server directory using http
 
-  def merge(resource, stage_scp, stage_web)
+  def publish(resource)
+    # Get the manifest
+    infer_base_url = "#{resource.stage_url}#{resource.publishing_id.to_s}-inferences/inferences.csv.chunks/"
+    chunks = JSON.parse(Net::HTTP.get(URI(infer_base_url + "manifest.json")))
+    chunks.size  # raise error if not an array
+    puts "Manifest: #{chunks}"
+
+    chunks.each do |chunk_name|
+      chunk_url = "#{infer_base_url}#{chunk_name}"    #no need to escape
+      # row will have strings, but page ids are integers.
+      query = "LOAD CSV WITH HEADERS FROM '#{chunk_url}'
+               AS row
+               WITH row, toInteger(row.page_id) AS page_id
+               MATCH (page:Page {page_id: page_id})
+               MATCH (trait:Trait {eol_pk: row.trait})
+               MERGE (page)-[i:inferred_trait]->(trait)
+               RETURN COUNT(i) 
+               LIMIT 1"
+      r = run_query(query)
+      if r
+        count = r["data"][0]
+      else
+        count = 0
+      end
+      STDERR.puts("Merged #{count} relations from #{chunk_url}")
+    end
+  end
+
+  def merge(resource)
     base_dir = "infer-#{resource.to_s}"
     net_path = File.join(base_dir, "inferences.csv")
     chunks_path = net_path + ".chunks"
@@ -333,7 +388,7 @@ class Painter
       chunk_path = File.join(chunks_path, name)    # local
       # don't bother creating a directory on the server, too lazy to figure out
       scp_target = "#{stage_scp}#{long_name}"
-      url = "#{stage_web}#{long_name}"    #no need to escape
+      url = "#{resource.stage_url}#{long_name}"    #no need to escape
       # Need to move this file to some server so EOL can access it.
       STDERR.puts("Copying #{chunk_path} to #{scp_target}")
       stdout_string, status = Open3.capture2("rsync -p #{chunk_path} #{scp_target}")
@@ -356,32 +411,10 @@ class Painter
     end
   end
 
-  # Do branch painting
-  # Probably a good idea to precede this with `rm -r paint-{resource.publishing_id}`
-  # - At present this method doesn't work because paged deletion
-  #   doesn't work.  Delete this method if it can be
-  #   determined likely that paged deletion will never work.
-
-  def paint(resource)
-    base_dir = "paint-#{resource.to_s}"
-    paint_or_infer(resource,
-                   "MERGE (d)-[:inferred_trait]->(t)
-                    RETURN d.page_id AS page_id, t.eol_pk AS trait",
-                   "MATCH (d)-[i:inferred_trait]->(t)
-                    DELETE i 
-                    RETURN d.page_id AS page_id, t.eol_pk AS trait",
-                   base_dir,
-                   # Don't chunk the deletion!!!
-                   false)
-    # Now, at this point, we *could* read the counts out of the files,
-    # but if we had wanted that information we could have said "infer"
-    # instead of "paint".
-  end
-
   # Run the two cypher commands (RETURN for "infer" operation; MERGE
   # and DELETE for "paint")
 
-  def paint_or_infer(resource, merge, delete, base_dir, skipping)
+  def paint_or_infer(resource, merge, delete, skipping)
     # Propagate traits from start point to descendants.  Filter by resource.
     # Currently assumes the painted trait has an object_term, but this
     # should be generalized to allow measurement as well
@@ -396,7 +429,7 @@ class Painter
     #{merge}"
     STDERR.puts(query)
     assert_path = 
-      run_chunked_query(query, @pagesize, File.join(base_dir, "assert.csv"))
+      run_chunked_query(query, @pagesize, temp_path(resource, "assert.csv"))
     return unless assert_path
 
     # Erase inferred traits from stop point to descendants.
@@ -412,7 +445,7 @@ class Painter
     #{delete}"
     STDERR.puts(query)
     retract_path =
-      run_chunked_query(query, @pagesize, File.join(base_dir, "retract.csv"), skipping)
+      run_chunked_query(query, @pagesize, temp_path(resource, "retract.csv"), skipping)
     [assert_path, retract_path]
   end
 
@@ -433,8 +466,7 @@ class Painter
   # Everything from here down is for debugging.
 
   # A complete smoke test for branch painting would look like this:
-  #   init     - create silly hierarchy and traits
-  #   test     - add painting directives
+  #   init     - create silly hierarchy, traits, and painting directives
   #   infer    - do inference and write to files
   #   merge    - apply inference (in files) to pages
   #   ?        - check that correct inference(s) got made
@@ -446,12 +478,9 @@ class Painter
   TESTING_PAGE_ORIGIN = 500000000
 
   def debug(command, resource)
-    page_origin = TESTING_PAGE_ORIGIN
     case command
-    when "init" then
-      populate(resource, page_origin)
-    when "test" then            # Add some directives
-      smoke_test(resource, page_origin)
+    when "populate" then
+      populate(resource)
     when "load" then
       filename = get_directives_filename
       load_directives(filename, resource)
@@ -530,17 +559,6 @@ class Painter
     end
   end
 
-  # Load directives specified inline (not from a file)
-  # Assumes existence of a Trait node in the resource with 
-  # resource_pk = 'tt_2'
-
-  def smoke_test(resource, page_origin)
-    process_stream([{:page => page_origin+2, :start => 'tt_2'},
-                    {:page => page_origin+4, :stop => 'tt_2'}],
-                   resource)
-    show(resource)
-  end
-
   # *** Debugging utility ***
   def show(resource)
     show_directives(resource)
@@ -595,7 +613,7 @@ class Painter
   # MERGE queries aren't allowed to have LIMIT clauses.
   # Kludge to prevent the cypher service from complaining: // LIMIT
 
-  def populate(resource, page_origin)
+  def populate(resource, page_origin = TESTING_PAGE_ORIGIN)
 
     puts "Origin - #{page_origin}"
 
@@ -639,14 +657,27 @@ class Painter
        MERGE (p2)-[:trait]->(t2)
        MERGE (t2)-[:supplier]->(r)
        // LIMIT")
+
+    # Load directives specified inline (not from a file)
+    # Assumes existence of a Trait node in the resource with 
+    # resource_pk = 'tt_2'
+    process_stream([{:page => page_origin+2, :start => 'tt_2'},
+                    {:page => page_origin+4, :stop => 'tt_2'}],
+                   resource)
+
     show(resource)
   end
 
-  # Remove all nodes created by 'populate'
-
+  # Delete a resource
   def flush(resource)
-    # Get rid of the test resource MetaData nodes (and their :metadata
-    # relationships)
+
+    unless resource.publishing_id == @testing_resource
+      raise("Hey, only delete the testing resource!") 
+    end
+
+    # clean(resource) - not really needed
+
+    # Delete MetaData nodes
     z = run_query(
       "MATCH (m:MetaData)<-[:metadata]-
              (:Trait)-[:supplier]->

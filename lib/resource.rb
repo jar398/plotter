@@ -27,12 +27,15 @@ class Resource
     @config
   end
 
-  def bind_to_stage(stage_scp, stage_web)
+  def bind_to_stage(stage_url, stage_scp = nil)
     @stage_scp = stage_scp || "varela:public_html/tmp/"
-    @stage_web = stage_web || "http://varela.csail.mit.edu/~jar/tmp/"
+    @stage_url = stage_url || "http://varela.csail.mit.edu/~jar/tmp/"
     @stage_scp += "/" unless @stage_scp.end_with?("/")
-    @stage_web += "/" unless @stage_web.end_with?("/")
+    @stage_url += "/" unless @stage_url.end_with?("/")
   end
+
+  def stage_scp; @stage_scp; end
+  def stage_url; @stage_url; end
 
   def bind_to_publishing(publishing_url, publishing_id = nil, token)
     publishing_url ||= get_config["development"]["host"]["url"]
@@ -54,13 +57,8 @@ class Resource
     @graph
   end
 
-  def publishing_id
-    @publishing_id
-  end
-
-  def publishing_url
-    @publishing_url
-  end
+  def publishing_id; @publishing_id; end
+  def publishing_url; @publishing_url; end
 
   def bind_to_repository(repository_url, repository_id = nil)
     repository_url ||= get_config["development"]["repository"]["url"]
@@ -105,12 +103,21 @@ class Resource
     @page_id_map[tnu_id]
   end
 
+  def workspace_dir(dir_name)
+    dir = File.join(@workspace, dir_name)
+    unless Dir.exist?(dir)
+      puts "Creating directory #{dir}"
+      FileUtils.mkdir_p(dir) 
+    end
+    dir
+  end
+
   def archive_path(name)
-    File.join(@workspace, "archive", name)
+    File.join(workspace_dir("archive"), name)
   end
 
   def publish_path(name)
-    File.join(@workspace, "publish", name)
+    File.join(workspace_dir("publish"), name)
   end
 
   # Similar to ResourceHarvester.new(self).start
@@ -119,10 +126,6 @@ class Resource
   def harvest
     parse_manifest
     get_page_id_map
-
-    dir = File.join(@workspace, "publish")
-    puts "Creating directory #{dir}"
-    FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
 
     vt = @tables[Term.vernacular_name]      # a Table
     raise("Cannot find vernaculars table (I see #{@tables.keys})") unless vt
@@ -154,7 +157,7 @@ class Resource
     html = noko_parse(@archive_url)
     archive_url = html.css('p.muted a').first['href']
     file = load_archive_if_needed(archive_url)
-    dest = File.join(@workspace, "archive")
+    dest = workspace_dir("archive")
     unpack_file(file, dest)
     from_xml(File.join(dest, "meta.xml"))
   end
