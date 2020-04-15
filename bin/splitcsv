@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Split a single .csv file foo.csv into multiple smaller .csv files
+# ("chunks"), all stored in directory foo.csv.chunks together.
+
+# The number of records per chunk is currently fixed at 100000...
+
+set -e
+FILE="$1"
+DIR="$FILE".chunks
+
+mkdir -p "$DIR"
+tail --lines=+2 "$FILE" | split --lines=100000 - "$DIR"/
+for f in "$DIR"/*; do
+    echo "adding header line -> $f.csv"
+    (head -1 "$FILE"; cat "$f") >"$f".csv
+    rm "$f"
+done

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Set rank property of Page nodes in graphdb.
+# This probably ought to be written in ruby, not bash.
+#
+# set-ranks.sh join.csv.chunks https://beta.eol.org/ beta-admin.token
+# set-ranks.sh join.csv.chunks https://eol.org/ production-admin.token
+
+set -e
+CHUNKS="$1"
+RSYNCDEST=varela:public_html/eol
+RSYNCSOURCE=http://varela.csail.mit.edu/~jar/eol
+SERVER="$2"
+TOKEN="$3"
+
+rsync -pr $CHUNKS $RSYNCDEST/
+
+for f in $CHUNKS/*; do
+  echo $f
+  b=`basename $f`
+  python3 doc/cypher.py --format csv --unsafe true \
+    --server "$SERVER" --tokenfile "$TOKEN" \
+    --query \
+  'LOAD CSV WITH HEADERS FROM "$RSYNCSOURCE/'$b'"
+  AS row
+  MATCH (page:Page {page_id: toInteger(row.page_id)})
+  WHERE row.rank <> ""
+  SET page.rank = row.rank
+  RETURN COUNT(page) LIMIT 1'
+done
