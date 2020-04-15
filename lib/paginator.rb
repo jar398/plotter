@@ -1,3 +1,5 @@
+# TBD: Integrate this with the 'table' class
+
 # Utility for overcoming Cypher query time limits when executing
 # long-running Cypher queries.  We replace the original query with a
 # number of smaller queries and LIMIT.  The smaller queries yield a
@@ -172,6 +174,7 @@ class Paginator
     end
     temp = path + ".new"
     FileUtils.mkdir_p File.dirname(temp)
+    # Should use the Table class here
     csv = CSV.open(temp, "wb")
     if headings
       csv << headings

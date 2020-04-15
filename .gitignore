@@ -8,4 +8,4 @@
 /tmp/
 *.token
 Gemfile.lock
-config/secrets.yml
+config/config.yml

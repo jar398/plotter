@@ -1,0 +1,36 @@
+test:
+  workspace:
+    path: '/home/jar/.reaper_workspace/test'
+  publishing:
+    url: 'http://localhost:3000'
+    token_file: 'corvus.token'
+    update_token_file: 'corvus.token'
+  repository:
+    url: 'https://beta-repo.eol.org/'
+  stage:
+    scp: 'varela:public_html/eol/test/'
+    url: 'http://varela.csail.mit.edu/~jar/eol/test/'
+dev:
+  workspace:
+    path: '/home/jar/.reaper_workspace/dev'
+  publishing: 
+    url: 'https://beta.eol.org/'
+    token_file: 'beta.token'
+    update_token_file: 'beta-admin.token'
+  repository:
+    url: 'https://beta-repo.eol.org/'
+  stage:
+    scp: 'varela:public_html/eol/test/'
+    url: 'http://varela.csail.mit.edu/~jar/eol/dev/'
+prod:
+  workspace:
+    path: '/home/jar/.reaper_workspace/prod'
+  publishing: 
+    url: 'https://eol.org/'
+    token_file: '/home/jar/eol/production.token'
+    update_token_file: '/home/jar/eol/production-admin.token'
+  repository:
+    url: 'https://content.eol.org/'
+  stage:
+    scp: 'varela:public_html/eol/prod/'
+    url: 'http://varela.csail.mit.edu/~jar/eol/prod/'

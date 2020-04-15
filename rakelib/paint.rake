@@ -1,73 +1,55 @@
+# Typical sequence:
+#   infer
+#   stage
+#   publish
 
 require 'resource'
 require 'painter'
-require 'graph'
-
-testing_resource = 99999
+require 'system'
 
 namespace :paint do
+
+  def testing_resource; 99999; end
+
+  def get_resource
+    Resource.new(
+      system: System.system(ENV['CONF']),
+      publishing_id: ENV['ID'] || testing_resource)
+  end
+
   desc 'a b c'
   task :count do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'])
-    Painter.new(resource.get_graph).count(resource)
+    Painter.new(get_resource).count
   end
 
   desc 'a b c'
   task :qc do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'])
-    Painter.new(resource.get_graph).qc(resource)
+    Painter.new(get_resource).qc
   end
 
   desc 'a b c d'
   task :infer do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'])
-    Painter.new(resource.get_graph).infer(resource)
+    Painter.new(get_resource).infer
   end
 
   desc 'move inferences to staging site'
   task :stage do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      stage_scp: ENV['STAGE_SCP'])
-    Painter.new(resource.get_graph).stage(resource)
+    Painter.new(get_resource).stage
   end
 
   desc 'store inferences from staging site into the graphdb'
   task :publish do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'],
-      stage_url: ENV['STAGE_URL'])
-    Painter.new(resource.get_graph).publish(resource)
+    Painter.new(get_resource).publish
   end
 
   desc 'remove inferences'
   task :clean do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'])
-    Painter.new(resource.get_graph).clean(resource)
+    Painter.new(get_resource).clean
   end
 
   desc 'for debugging'
   task :populate do 
-    resource = Resource.new(
-      publishing_url: ENV['SERVER'],
-      publishing_id: ENV['ID'] || testing_resource,
-      publishing_token: ENV['TOKEN'])
-    Painter.new(resource.get_graph).populate(resource)
+    Painter.new(get_resource).populate
   end
 
 end

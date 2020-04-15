@@ -15,10 +15,12 @@ require 'json'
 require 'term'
 require 'table'
 require 'dwca'
+require 'graph'
 
 class Resource
 
-  def initialize(workspace_root: nil,
+  def initialize(system: nil,
+                 workspace_root: nil,
                  workspace: nil,
                  publishing_url: nil,
                  publishing_id: nil,
@@ -27,11 +29,11 @@ class Resource
                  repository_id: nil,
                  stage_scp: nil,
                  stage_url: nil,
-                 config: nil,
                  dwca: nil,
                  opendata_url: nil,
                  dwca_url: nil,
                  dwca_path: nil)
+    @system = system
     @workspace_root = workspace_root
     @workspace = workspace
     @publishing_url = publishing_url
@@ -41,7 +43,6 @@ class Resource
     @repository_id = repository_id ? repository_id.to_i : nil
     @stage_scp = stage_scp
     @stage_url = stage_url
-    @config = config
     @dwca = dwca || Dwca.new(get_workspace,
                              opendata_url: opendata_url,
                              dwca_url: dwca_url,
@@ -55,7 +56,7 @@ class Resource
 
   def get_workspace_root        # For all resources
     return @workspace_root if @workspace_root
-    @workspace_root = File.join(ENV['HOME'], ".reaper_workspace")
+    @workspace_root = get_config["workspace"]["path"]
     @workspace_root
   end
 
@@ -66,20 +67,21 @@ class Resource
   end
 
   def get_config
-    return @config if @config
-    @config = YAML.load(File.read("config/secrets.yml"))
-    @config
+    @system.get_config
   end
 
   def get_publishing_url
-    @publishing_url ||= get_config["development"]["host"]["url"]
+    @publishing_url ||= get_config["publishing"]["url"]
     @publishing_url += "/" unless @publishing_url.end_with?("/")
     @publishing_url
   end
 
   def get_publishing_token
     return @publishing_token if @publishing_token
-    raise("A token is required, but none was provided")
+    path = get_config["publishing"]["update_token_file"]
+    raise("No token file specified") unless path
+    @publishing_token = File.read(path).strip
+    @publishing_token
   end
 
   def get_repository_id
@@ -94,7 +96,7 @@ class Resource
   end
 
   def get_repository_url
-    @repository_url ||= get_config["development"]["repository"]["url"]
+    @repository_url ||= get_config["repository"]["url"]
     @repository_url += "/" unless @repository_url.end_with?("/")
     @repository_url
   end
@@ -103,7 +105,7 @@ class Resource
     if @stage_scp
       @stage_scp += "/" unless @stage_scp.end_with?("/")
     else
-      @stage_scp = "varela:public_html/eol/"
+      @stage_scp = get_config["stage"]["scp"]
     end
     @stage_scp
   end
@@ -112,7 +114,7 @@ class Resource
     if @stage_url
       @stage_url += "/" unless @stage_url.end_with?("/")
     else
-      @stage_url = "http://varela.csail.mit.edu/~jar/eol/"
+      @stage_url = get_config["stage"]["url"]
     end
     @stage_url
   end
@@ -185,7 +187,8 @@ class Resource
     counter = 0
     csv_in = vt.open_csv_in
 
-    out_table = Table.new(out_header, local_staging_path("vernaculars.csv"))
+    out_table = Table.new(header: out_header,
+                          path: local_staging_path("vernaculars.csv"))
     csv_out = vt.open_csv_out
     csv_in.each do |row_in|
       row_out = indexes.collect{|index| row_in[index]}
