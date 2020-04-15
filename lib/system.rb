@@ -20,7 +20,7 @@ class System
   def get_config
     return @config if @config
     @config = YAML.load(File.read("config/config.yml"))[@tag]
-    raise("No configuration found with this tag") unless @config
+    raise("No configuration found with tag #{@tag}") unless @config
     @config
   end
 

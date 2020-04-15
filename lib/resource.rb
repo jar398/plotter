@@ -239,9 +239,11 @@ class Resource
     if File.directory?(path)
       # Prepare one manifest
       names = Dir.glob("*", base: path)
-      man = File.join(path, "manifest.json")
-      puts "Writing #{man}"
-      File.write(man, names)
+      if path.end_with?(".chunks")
+        man = File.join(path, "manifest.json")
+        puts "Writing #{man}"
+        File.write(man, names)
+      end
       # Recur
       names.each {|name| prepare_manifests(File.join(path, name))}
     end

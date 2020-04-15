@@ -12,7 +12,7 @@
 # . merge - read inferred trait assertions from file (see `infer`) and
 #      add them to the graphdb
 # . count - count a resource's inferred trait assertions
-# . clean - remove all of a resource's inferred trait assertions
+# . erase - remove all of a resource's inferred trait assertions
 #
 # The choice of command, and any parameters, are communicated via
 # shell variables.  Shell variables can be set using `export` or
@@ -25,10 +25,7 @@
 # . TOKEN - API token to be used with SERVER
 # . ID - the publishing id of the resource to be painted
 
-# For example:
-#
-# export SERVER="http://127.0.0.1:3000/"
-# export TOKEN=`cat ~/Sync/eol/admin.token`
+# For example: (be sure to set up your config/config.yml first)
 #
 # ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
 
@@ -40,12 +37,7 @@
 require 'csv'
 require 'open3'
 
-# These are required if we want to be an HTTP client:
-require 'net/http'
-require 'json'
-require 'cgi'
-
-require_relative 'paginator'
+require 'paginator'
 
 class Painter
 
@@ -62,57 +54,22 @@ class Painter
     @graph
   end
 
-  # List all of a resource's start and stop directives
-  # Use sort -k 1 -t , to mix them up
+  # Infer and stage trait relationships (publish is separate)
 
-  def show_directives(resource = @resource)
-    STDERR.puts("Directives:")
-    puts("trait,which,page_id,canonical")
-    show_stxx_directives(@resource, Term.starts_at, "Start")
-    show_stxx_directives(@resource, Term.stops_at, "Stop")
-  end
-
-  def show_stxx_directives(resource, uri, tag)
-    id = resource.get_publishing_id
-    r = run_query(
-      "WITH '#{tag}' AS tag
-         MATCH (r:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
-               (t:Trait)-[:metadata]->
-               (m:MetaData)-[:predicate]->
-               (:Term {uri: '#{uri}'}),
-               (p:Page)-[:trait]->(t)
-         WITH p, t, #{cast_page_id('m')} as point_id, tag
-         MATCH (point:Page {page_id: point_id})
-         OPTIONAL MATCH (point)-[:parent]->(parent:Page)
-         RETURN t.resource_pk, tag, point_id, point.canonical, parent.page_id
-         ORDER BY t.resource_pk, point_id
-         LIMIT 10000")
-    if r
-      r["data"].each do |trait, tag, id, canonical, parent_id|
-        puts("#{trait},#{tag},#{id},#{canonical},#{parent_id}")
-      end
-    end
-  end
-
-  # If m names a MetaData record (for a directive), extract the page
-  # id it holds to an integer.
-  # Work in progress.  For now, the page ids are stored in the
-  # MetaData node as strings under the .measurement property, but it
-  # would be lovely if they could be stored as integers under the
-  # object_page_id property.  Unfortunately the schema does not allow
-  # object_page_id on MetaData nodes yet.
-
-  def cast_page_id(m)
-    if true
-      "toInteger(#{m}.measurement)"
+  def paint
+    n = count
+    if n > 0
+      STDERR.puts "Please erase inferred relationships before painting (found #{n})"
     else
-      "#{m}.object_page_id"
+      infer
+      stage
+      STDERR.puts "Ready to publish"
     end
   end
 
   # Remove all of a resource's inferred trait assertions
 
-  def clean(resource = @resource)
+  def erase(resource = @resource)
     r = run_query("MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
@@ -133,9 +90,12 @@ class Painter
                    RETURN COUNT(*)
                    LIMIT 10")
     if r
-      STDERR.puts(r["data"][0])
+      count = r["data"][0][0]
+      STDERR.puts count
+      count
     else
       STDERR.puts "No count!?"
+      0
     end
   end
 
@@ -200,6 +160,22 @@ class Painter
       end
     else
       puts "Empty cypher result?!"
+    end
+  end
+
+  # If m names a MetaData record (for a directive), extract the page
+  # id it holds to an integer.
+  # Work in progress.  For now, the page ids are stored in the
+  # MetaData node as strings under the .measurement property, but it
+  # would be lovely if they could be stored as integers under the
+  # object_page_id property.  Unfortunately the schema does not allow
+  # object_page_id on MetaData nodes yet.
+
+  def cast_page_id(m)
+    if true
+      "toInteger(#{m}.measurement)"
+    else
+      "#{m}.object_page_id"
     end
   end
 
@@ -428,6 +404,38 @@ class Painter
     end
   end
 
+  # List all of a resource's start and stop directives
+  # Use sort -k 1 -t , to mix them up
+
+  def show_directives(resource = @resource)
+    STDERR.puts("Directives:")
+    puts("trait,which,page_id,canonical")
+    show_stxx_directives(@resource, Term.starts_at, "Start")
+    show_stxx_directives(@resource, Term.stops_at, "Stop")
+  end
+
+  def show_stxx_directives(resource, uri, tag)
+    id = resource.get_publishing_id
+    r = run_query(
+      "WITH '#{tag}' AS tag
+         MATCH (r:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+               (t:Trait)-[:metadata]->
+               (m:MetaData)-[:predicate]->
+               (:Term {uri: '#{uri}'}),
+               (p:Page)-[:trait]->(t)
+         WITH p, t, #{cast_page_id('m')} as point_id, tag
+         MATCH (point:Page {page_id: point_id})
+         OPTIONAL MATCH (point)-[:parent]->(parent:Page)
+         RETURN t.resource_pk, tag, point_id, point.canonical, parent.page_id
+         ORDER BY t.resource_pk, point_id
+         LIMIT 10000")
+    if r
+      r["data"].each do |trait, tag, id, canonical, parent_id|
+        puts("#{trait},#{tag},#{id},#{canonical},#{parent_id}")
+      end
+    end
+  end
+
   # Load directives from TSV file... this was just for testing
 
   def load_directives(filename, resource = @resource)
@@ -605,7 +613,7 @@ class Painter
       raise("Hey, only delete the testing resource!") 
     end
 
-    # clean(resource) - not really needed
+    # erase(resource) - not really needed
 
     # Delete MetaData nodes
     z = run_query(

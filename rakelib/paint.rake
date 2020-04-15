@@ -11,45 +11,55 @@ namespace :paint do
 
   def testing_resource; 99999; end
 
-  def get_resource
-    Resource.new(
-      system: System.system(ENV['CONF']),
-      publishing_id: ENV['ID'] || testing_resource)
+  def get_painter
+    Painter.new(
+      Resource.new(
+        system: System.system(ENV['CONF']),
+        publishing_id: ENV['ID'] || testing_resource))
   end
 
   desc 'a b c'
-  task :count do 
-    Painter.new(get_resource).count
-  end
-
-  desc 'a b c'
-  task :qc do 
-    Painter.new(get_resource).qc
-  end
-
-  desc 'a b c d'
-  task :infer do 
-    Painter.new(get_resource).infer
-  end
-
-  desc 'move inferences to staging site'
-  task :stage do 
-    Painter.new(get_resource).stage
+  task :paint do 
+    get_painter.paint
   end
 
   desc 'store inferences from staging site into the graphdb'
   task :publish do 
-    Painter.new(get_resource).publish
+    get_painter.publish
   end
 
-  desc 'remove inferences'
-  task :clean do 
-    Painter.new(get_resource).clean
+  desc "remove a resource's inferences"
+  task :erase do 
+    get_painter.erase
   end
 
-  desc 'for debugging'
+  # Diagnostic tasks
+
+  desc "Show count of number of inferred relationships"
+  task :count do 
+    get_painter.count
+  end
+
+  desc "Quality control checks"
+  task :qc do 
+    get_painter.qc
+  end
+
+  desc "Set up dummy resource for debugging purposes"
   task :populate do 
-    Painter.new(get_resource).populate
+    get_painter.populate
+  end
+
+  # Subtasks
+
+  desc 'a b c d'
+  task :infer do 
+    get_painter.infer
+  end
+
+  desc 'move inferences to staging site'
+  task :stage do 
+    get_painter.stage
   end
 
 end
