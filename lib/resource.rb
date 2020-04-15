@@ -72,9 +72,14 @@ class Resource
   end
 
   def get_publishing_url
-    return @publishing_url if @publishing_url
-    @publishing_url = get_config["development"]["host"]["url"]
+    @publishing_url ||= get_config["development"]["host"]["url"]
+    @publishing_url += "/" unless @publishing_url.end_with?("/")
     @publishing_url
+  end
+
+  def get_publishing_token
+    return @publishing_token if @publishing_token
+    raise("A token is required, but none was provided")
   end
 
   def get_repository_id
@@ -89,8 +94,8 @@ class Resource
   end
 
   def get_repository_url
-    return @repository_url if @repository_url
-    @repository_url = get_config["development"]["host"]["url"]
+    @repository_url ||= get_config["development"]["repository"]["url"]
+    @repository_url += "/" unless @repository_url.end_with?("/")
     @repository_url
   end
 
@@ -114,35 +119,9 @@ class Resource
 
   def get_graph
     return @graph if @graph
-    raise("A token is required, but none was provided") unless @token
-    query_fn = Graph.via_http(publishing_url, publishing_token)
+    query_fn = Graph.via_http(get_publishing_url, get_publishing_token)
     @graph = Graph.new(query_fn)
     @graph
-  end
-
-  def publishing_id; @publishing_id; end
-  def publishing_url; @publishing_url; end
-
-  def bind_to_repository(repository_url, repository_id = nil)
-    repository_url ||= get_config["development"]["repository"]["url"]
-    repository_url += "/" unless repository_url.end_with?("/")
-
-    if repository_id
-      name = "?"
-    else
-      record = get_record(get_publishing_id)
-      if record
-        name = record["name"]    
-        repository_id = record["repository_id"]
-      else
-        raise("Unknown resource #{repository_id}; REPOSITORY_ID must be specified") unless repository_id
-      end
-    end
-    puts("Resource #{@publishing_id}/#{repository_id || "?"} = #{name}")
-
-    @repository_id = repository_id.to_i if repository_id
-    @repository_url = repository_url
-    puts "Repository site is #{repository_url}, id is @{repository_id || '?'}"
   end
 
   def get_record(publishing_id)
@@ -154,12 +133,6 @@ class Resource
       records_index[id] = record
     end
     records_index[publishing_id]
-  end
-
-  # Record a decision as to which opendata resource this resource
-  # should be associated with.
-  def bind_to_opendata(url)
-    @archive_url = url
   end
 
   def map_to_page_id(tnu_id)
@@ -210,9 +183,10 @@ class Resource
     puts "Indexes are #{indexes}"
 
     counter = 0
-    csv_in = vt.open_csv_in(vt.location)
-    csv_out = vt.open_csv_out(local_staging_path("vernaculars.csv"),
-                              out_header)
+    csv_in = vt.open_csv_in
+
+    out_table = Table.new(out_header, local_staging_path("vernaculars.csv"))
+    csv_out = vt.open_csv_out
     csv_in.each do |row_in|
       row_out = indexes.collect{|index| row_in[index]}
       tnu_id = row_out[0]
@@ -248,7 +222,7 @@ class Resource
   def stage(dir_name = "stage")
     local_staging_path = File.join(@workspace, dir_name)
     prepare_manifests(local_staging_path)
-    stage_specifier = "#{get_stage_scp}#{publishing_id.to_s}-#{dir_name}"
+    stage_specifier = "#{get_stage_scp}#{get_publishing_id.to_s}-#{dir_name}"
     STDERR.puts("Copying #{local_staging_path} to #{stage_specifier}")
     stdout_string, status = Open3.capture2("rsync -va #{local_staging_path}/ #{stage_specifier}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
@@ -288,7 +262,8 @@ class Resource
   end
 
   def erase_vernaculars
-    query = "MATCH (v:Vernacular {resource_id: #{publishing_id}})
+    query = "MATCH (r:Resource {resource_id: #{get_publishing_id}})
+             MATCH (v:Vernacular)-[:supplier]->(r)
              DETACH DELETE v
              RETURN COUNT(v)
              LIMIT 10000000"
@@ -302,14 +277,22 @@ class Resource
   end
 
   def publish_vernaculars
-    url = "#{get_stage_url}#{publishing_id.to_s}-publish/vernaculars.csv"
+
+    # Make sure the resource node is there
+    get_graph.run_query(
+      "MERGE (r:Resource {resource_id: #{get_publishing_id}})
+       RETURN r:resource_id
+       LIMIT 1")
+
+    url = "#{get_stage_url}#{get_publishing_id.to_s}-stage/vernaculars.csv"
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
              WITH row, toInteger(row.page_id) AS page_id
-             MERGE (p:Page {page_id: page_id})-[:vernacular]->
+             MATCH (r:Resource {resource_id: #{get_publishing_id}})
+             MERGE (:Page {page_id: page_id})-[:vernacular]->
                    (:Vernacular {namestring: row.namestring,
-                                 language: row.language,
-                                 resource_id: #{publishing_id}})
+                                 language: row.language})-[:supplier]->
+                   (r)
              RETURN COUNT(row)
              LIMIT 1"
     r = get_graph.run_query(query)
@@ -317,155 +300,8 @@ class Resource
     STDERR.puts("Merged #{count} relationships from #{url}")
   end
 
-  # Adapted from harvester app/models/resource/from_open_data.rb parse
-  def parse_manifest
-    html = noko_parse(@archive_url)
-    archive_url = html.css('p.muted a').first['href']
-    file = load_archive_if_needed(archive_url)
-    dest = dir_in_workspace("archive")
-    unpack_file(file, dest)
-    from_xml(File.join(dest, "meta.xml"))
-  end
-
-  # Get the information that we'll need out of the meta.xml file
-  # Returns a hash from term URIs to table elements
-  # Adapted from harvester app/models/resource/from_meta_xml.rb self.analyze
-  def from_xml(filename)
-    doc = File.open(filename) { |f| Nokogiri::XML(f) }
-    table_element = doc.css('archive table')
-    @table_configs = {}
-    @tables = {}
-    table_element.each do |table_element|
-      row_type = table_element['rowType']
-      if @table_configs.key?(row_type)
-        STDERR.put("Not yet implemented: multiple files for same row type #{row_type}")
-      else
-        @table_configs[row_type] = table_element
-        @tables[row_type] =
-          Table.new(archive_path(table_element.css("location").first.text),
-                    table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
-                    table_element['ignoreHeaderLines'].to_i,
-                    parse_fields(table_element),
-                    self)
-      end
-    end
-  end
-
-  def parse_fields(table_element)
-    fields_for_this_table = {}
-    table_element.css('field').each do |field|
-      i = field['index'].to_i
-      key = field['term']
-      fields_for_this_table[key] = i
-    end
-    fields_for_this_table
-  end
-
-  # Adapted from harvester app/models/drop_dir.rb
-  # File is either something.tgz or something.zip
-  def unpack_file(file, dest)
-    temp = File.join(File.dirname(file), "unpack")
-    ext = File.extname(file)
-    FileUtils.mkdir_p(temp) unless Dir.exist?(temp)
-    if ext.casecmp('.tgz').zero?
-      untgz(file, temp)
-    elsif ext.casecmp('.zip').zero?
-      unzip(file, temp)
-    else
-      raise("Unknown file extension: #{basename}#{ext}")
-    end
-    # Remove archive's top-level directory, if there is one
-    source = tuck(temp)
-    if File.exists?(dest)
-      puts "Removing #{dest}"
-      `rm -rf #{dest}` 
-    end
-    puts "Moving #{source} to #{dest}"
-    FileUtils.mv(source, dest)
-    if File.exists?(temp)
-      puts "Removing #{temp}"
-      `rm -rf #{temp}`
-    end
-    # TBD: delete what remains of temp
-    dest
-  end
-
-  def untgz(file, dir)
-    res = `cd #{dir} && tar xvzf #{file}`
-  end
-
-  def unzip(file, dir)
-    # NOTE: -u for "update and create if necessary"
-    # NOTE: -q for "quiet"
-    # NOTE: -o for "overwrite files WITHOUT prompting"
-    res = `cd #{dir} && unzip -quo #{file}`
-  end
-
-  # Similar to `flatten` in harvester app/models/drop_dir.rb
-  def tuck(dir)
-    if File.exist?(File.join(dir, "meta.xml"))
-      dir
-    else
-      winners = Dir.children(dir).filter do |child|
-        cpath = File.join(dir, child)
-        (File.directory?(cpath) and
-         File.exist?(File.join(cpath, "meta.xml")))
-      end
-      raise("Cannot find meta.xml in #{dir}") unless winners.size == 1
-      winners[0]
-    end
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb
-  def load_archive_if_needed(archive_url)
-    ext = 'tgz'
-    ext = 'zip' if archive_url.match?(/zip$/)
-    path = File.join(@workspace, "#{@publishing_id}.#{ext}")
-
-    # Reuse previous file only if URL matches
-    file_holding_url = File.join(@workspace, "archive_url")
-    valid = false
-    if File.exists?(file_holding_url)
-      old_url = File.read(file_holding_url)
-      if old_url == archive_url
-        valid = true 
-      else
-        STDERR.puts "Different URL this time!"
-      end
-    end
-
-    if valid && File.exist?(path) && File.size(path).positive?
-      STDERR.puts "Using previously downloaded archive.  rm -r #{@workspace} to force reload."
-    else
-      `rm -rf #{@workspace}`
-      FileUtils.mkdir_p(@workspace)
-      STDERR.puts "Copying #{archive_url} to #{path}"
-      require 'open-uri'
-      File.open(path, 'wb') do |file|
-        open(archive_url, 'rb') do |input|
-          file.write(input.read)
-        end
-      end
-      raise('Did not download') unless File.exist?(path) && File.size(path).positive?
-      File.write(file_holding_url, archive_url)
-    end
-    STDERR.puts "... #{File.size(path)} octets"
-    path
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb
-  def noko_parse(archive_url)
-    require 'open-uri'
-    begin
-      raw = open(archive_url)
-    rescue Net::ReadTimeout => e
-      fail_with(e)
-    end
-    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
-    Nokogiri::HTML(raw)
-  end
-
   # Cache the resource's resource_pk to page id map in memory
+  # [might want to cache it in the file system as well]
 
   def get_page_id_map
     return @page_id_map if @page_id_map
@@ -479,7 +315,7 @@ class Resource
       # get mapping from tnu_id table
       tnu_id_column = tt.column_for_field(Term.tnu_id)
       page_id_column = tt.column_for_field(Term.page_id)
-      tt.open_csv_in(tt.location).each do |row|
+      tt.open_csv_in.each do |row|
         page_id_map[row[tnu_id_column]] = row[page_id_column].to_i
       end
     else

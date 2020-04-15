@@ -9,12 +9,11 @@
 
 class Table
   # config is just the <table> element.  parsed on demand.
-  def initialize(location, separator, n_ignore, fields, dwca)
-    @dwca = dwca
-    @location = location
+  def initialize(fields, path, separator = ",", ignore_lines = 1)
+    @path = path
     @fields = fields     # URI to column index
     @separator = separator
-    @n_ignore = n_ignore
+    @ignore_lines = ignore_lines
   end
 
   def field?(term)
@@ -25,21 +24,24 @@ class Table
     @fields[term]
   end
 
-  def location
-    @location
+  def path
+    @path
   end
 
-  def open_csv_out(dest, header)
-    puts "Writing #{dest}"
-    csv = CSV.open(dest, "w:UTF-8")
+  def open_csv_out
+    puts "Writing #{@path}"
+    csv = CSV.open(@path, "w:UTF-8")
+    header = ['?' * @fields.size]
+    @fields.keys.each{|key| header[@fields[key] = key.split("/")[-1]]}
+    puts "Header: #{header.join(' | ')}"
     csv << header
     csv
   end
 
-  def open_csv_in(source)
+  def open_csv_in
     quote_char = (@separator == "\t" ? "\x00" : '"')
-    csv = CSV.open(source, "r:UTF-8", col_sep: @separator, quote_char: quote_char)
-    (0...@n_ignore).each do |counter|
+    csv = CSV.open(@path, "r:UTF-8", col_sep: @separator, quote_char: quote_char)
+    (0...@ignore_lines).each do |counter|
       row = csv.shift
       puts "discarding header row #{row}"
     end

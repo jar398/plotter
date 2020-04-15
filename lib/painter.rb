@@ -23,14 +23,14 @@
 # . SERVER - the http server for an EOL web app instance, used for its
 #      cypher service.  E.g. "https://eol.org/"
 # . TOKEN - API token to be used with SERVER
-# . RESOURCE - the publishing id of the resource to be painted
+# . ID - the publishing id of the resource to be painted
 
 # For example:
 #
 # export SERVER="http://127.0.0.1:3000/"
 # export TOKEN=`cat ~/Sync/eol/admin.token`
 #
-# RESOURCE=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
+# ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
 
 # Branch painting generates a lot of logging output.  If you have a
 # local instance you might want to put 'config.log_level = :warn' in
@@ -121,13 +121,15 @@ class Painter
   # Display count of a resource's inferred trait assertions
 
   def count(resource)
-    r = run_query("MATCH (:Resource {resource_id: #{resource.publishing_id}})<-[:supplier]-
+    r = run_query("MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
                    RETURN COUNT(*)
                    LIMIT 10")
     if r
       STDERR.puts(r["data"][0])
+    else
+      STDERR.puts "No count!?"
     end
   end
 

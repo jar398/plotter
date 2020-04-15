@@ -1,12 +1,18 @@
+require 'neography'
 
 class Graph
 
-  def self.via_http(server, token)
+  # Hmm.  If a neo4j URL is given in the configuration, try that.
+  # Otherwise, go through the publishing server.
+
+  # Default method for accessing the graph = EOL v3 API
+
+  def self.via_http(publishing_server, token)
     raise("Token not supplied") unless token
-    Proc.new {|cql| query_via_http(cql, server, token)}
+    Proc.new {|cql| query_via_http(cql, publishing_server, token)}
   end
 
-  # Replace query_fn if desired with TraitBank::query(cql), some other
+  # Replace query_fn if desired with TraitBank::query, some other
   # call to neography, or to direct access to neo4j
 
   def initialize(query_fn)
@@ -14,6 +20,7 @@ class Graph
   end
 
   # We also need stage_scp, stage_web if we're doing paged queries!
+  # But maybe we're leaving that up to the Paginator class?
 
   def run_query(cql)
     json = @query_fn.call(cql)
@@ -29,6 +36,9 @@ class Graph
   # A particular query method for doing queries using the EOL v3 API over HTTP
   # CODE FORKED FROM traits_dumper.rb ...
 
+  # This uses POST for all commands; probably should use GET
+  # (cacheable) for pure queries.
+
   def self.query_via_http(cql, server, token)
     # Need to be a web client.
     # "The Ruby Toolbox lists no less than 25 HTTP clients."
@@ -39,13 +49,14 @@ class Graph
     Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl) do |http|
       request = Net::HTTP::Post.new(uri)
       request['Authorization'] = "JWT #{token}"
+      request['Accept'] = "application/json"
       response = http.request(request)
       if response.is_a?(Net::HTTPSuccess)
         JSON.parse(response.body)    # can return nil
       else
         STDERR.puts("** HTTP response: #{response.code} #{response.message}")
         if response.code >= '300' && response.code < '400'
-          STDERR.puts("** Location: #{response["Location"]}")
+          STDERR.puts("** Location: #{response['Location']}")
         end
         # Ideally we'd print only those lines that have useful 
         # information (error message and backtrace).

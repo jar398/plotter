@@ -160,7 +160,7 @@ class Dwca
   def get_tables
     return @tables if @tables
     get_unpacked
-    from_xml(File.join(@unpacked, "meta.xml"))
+    @tables = from_xml(File.join(@unpacked, "meta.xml"))
     @tables
   end
 
@@ -171,14 +171,14 @@ class Dwca
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
     table_element = doc.css('archive table')
     @table_configs = {}
-    @tables = {}
+    tables = {}
     table_element.each do |table_element|
       row_type = table_element['rowType']
       if @table_configs.key?(row_type)
         STDERR.put("Not yet implemented: multiple files for same row type #{row_type}")
       else
         @table_configs[row_type] = table_element
-        @tables[row_type] =
+        tables[row_type] =
           Table.new(File.join(@unpacked,
                               table_element.css("location").first.text),
                     table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
@@ -187,6 +187,7 @@ class Dwca
                     self)
       end
     end
+    tables
   end
 
   def parse_fields(table_element)
