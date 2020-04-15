@@ -11,14 +11,18 @@ class Dwca
 
   def initialize(workspace, dwca_path: nil, dwca_url: nil, opendata_url: nil)
     @dwca_workspace = File.join(workspace, "dwca")
-    unless Dir.exist?(@dwca_workspace)
-      puts "Creating directory #{@dwca_workspace}"
-      FileUtils.mkdir_p(@dwca_workspace) 
-    end
     @unpacked = File.join(@dwca_workspace, "unpacked")
     @dwca_path = dwca_path         # where the dwca is stored in local file system
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
     @opendata_url = opendata_url  # URL of opendata resource landing page
+  end
+
+  def get_workspace
+    unless Dir.exist?(@dwca_workspace)
+      puts "Creating directory #{@dwca_workspace}"
+      FileUtils.mkdir_p(@dwca_workspace) 
+    end
+    @dwca_workspace
   end
 
   def get_unpacked
@@ -70,7 +74,7 @@ class Dwca
     else
       # Download the archive file from Internet if it's not
       `rm -rf #{@dwca_workspace}`
-      FileUtils.mkdir_p(@dwca_workspace)
+      ws = get_workspace    # create the directory
       STDERR.puts "Copying #{dwca_url} to #{dwca_path}"
       File.open(dwca_path, 'wb') do |file|
         open(dwca_url, 'rb') do |input|
@@ -78,7 +82,7 @@ class Dwca
         end
       end
       raise('Did not download') unless File.exist?(dwca_path) && File.size(dwca_path).positive?
-      File.write(File.join(@dwca_workspace, "dwca_url"), dwca_url)
+      File.write(File.join(ws, "dwca_url"), dwca_url)
     end
     STDERR.puts "... #{File.size(dwca_path)} octets"
     @dwca_path = dwca_path
@@ -106,7 +110,7 @@ class Dwca
     dir = File.dirname(dest)
     FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
                       
-    temp = File.join(@dwca_workspace, "tmp")
+    temp = File.join(get_workspace, "tmp")
     FileUtils.mkdir_p(temp) unless Dir.exist?(temp)
 
     ext = File.extname(archive)

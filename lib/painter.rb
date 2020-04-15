@@ -109,7 +109,7 @@ class Painter
     qc_presence(resource, Term.stops_at, "stop")
 
     # Make sure every stop point is under some start point
-    r = run_query("MATCH (r:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+    r = run_query("MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
                          (t:Trait)-[:metadata]->
                          (m2:MetaData)-[:predicate]->
                          (:Term {uri: '#{Term.stops_at}'})
@@ -418,7 +418,7 @@ class Painter
     id = resource.get_publishing_id
     r = run_query(
       "WITH '#{tag}' AS tag
-         MATCH (r:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+         MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
                (t:Trait)-[:metadata]->
                (m:MetaData)-[:predicate]->
                (:Term {uri: '#{uri}'}),
