@@ -18,12 +18,14 @@ namespace :paint do
         publishing_id: ENV['ID'] || testing_resource))
   end
 
-  desc 'a b c'
+  # Ordinary tasks
+
+  desc "Compute inferred relationships and put them on the staging site"
   task :paint do 
     get_painter.paint
   end
 
-  desc 'store inferences from staging site into the graphdb'
+  desc "Load inferred relationships from staging site into the graphdb"
   task :publish do 
     get_painter.publish
   end

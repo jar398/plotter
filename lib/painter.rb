@@ -38,6 +38,7 @@ require 'csv'
 require 'open3'
 
 require 'paginator'
+require 'property'
 
 class Painter
 
@@ -105,20 +106,20 @@ class Painter
 
   def qc(resource = @resource)
     id = resource.get_publishing_id
-    qc_presence(resource, Term.starts_at, "start")
-    qc_presence(resource, Term.stops_at, "stop")
+    qc_presence(resource, Property.starts_at, "start")
+    qc_presence(resource, Property.stops_at, "stop")
 
     # Make sure every stop point is under some start point
     r = run_query("MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
                          (t:Trait)-[:metadata]->
                          (m2:MetaData)-[:predicate]->
-                         (:Term {uri: '#{Term.stops_at}'})
+                         (:Term {uri: '#{Property.stops_at.uri}'})
                    WITH t, #{cast_page_id('m2')} AS stop_id
                    MATCH (stop:Page {page_id: stop_id})
                    OPTIONAL MATCH 
                          (t)-[:metadata]->
                          (m1:MetaData)-[:predicate]->
-                         (:Term {uri: '#{Term.starts_at}'})
+                         (:Term {uri: '#{Property.starts_at.uri}'})
                    WITH t, stop_id, #{cast_page_id('m1')} AS start_id
                    MATCH (start:Page {page_id: start_id})
                    OPTIONAL MATCH (stop)-[z:parent*1..]->(start)
@@ -136,7 +137,8 @@ class Painter
     end
   end
 
-  def qc_presence(resource, term, which)
+  def qc_presence(resource, property, which)
+    term = property.uri
     id = resource.get_publishing_id
     r = run_query("MATCH (:Resource {resource_id: #{id}})<-[:supplier]-
                          (:Trait)-[:metadata]->
@@ -240,6 +242,7 @@ class Painter
     net_path = inferences_path(resource, "inferences.csv")
 
     # Write net inferences as single CSV (optional)
+    # TBD: Use Table class...
     STDERR.puts("Net: #{inferences.size} inferences")
     CSV.open(net_path, "wb:UTF-8") do |csv|
       STDERR.puts("Writing #{net_path}")
@@ -289,7 +292,7 @@ class Painter
       "MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
              (t:Trait)-[:metadata]->
              (m:MetaData)-[:predicate]->
-             (:Term {uri: '#{Term.starts_at}'})
+             (:Term {uri: '#{Property.starts_at.uri}'})
        OPTIONAL MATCH (t)-[:object_term]->(o:Term)
        WITH t, #{cast_page_id('m')} as start_id, o
        MATCH (:Page {page_id: start_id})<-[:parent*1..]-(d:Page)
@@ -304,7 +307,7 @@ class Painter
       "MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
              (t:Trait)-[:metadata]->
              (m:MetaData)-[:predicate]->
-             (:Term {uri: '#{Term.stops_at}'})
+             (:Term {uri: '#{Property.stops_at.uri}'})
        WITH t, #{cast_page_id('m')} as stop_id
        MATCH (stop:Page {page_id: stop_id})
        WITH stop, t
@@ -410,11 +413,12 @@ class Painter
   def show_directives(resource = @resource)
     STDERR.puts("Directives:")
     puts("trait,which,page_id,canonical")
-    show_stxx_directives(@resource, Term.starts_at, "Start")
-    show_stxx_directives(@resource, Term.stops_at, "Stop")
+    show_stxx_directives(@resource, Property.starts_at, "Start")
+    show_stxx_directives(@resource, Property.stops_at, "Stop")
   end
 
-  def show_stxx_directives(resource, uri, tag)
+  def show_stxx_directives(resource, property, tag)
+    term = property.uri
     id = resource.get_publishing_id
     r = run_query(
       "WITH '#{tag}' AS tag
@@ -457,10 +461,10 @@ class Painter
     z.each do |row|
       page_id = Integer(row[:page])
       if row.key?(:stop)
-        add_directive(page_id, row[:stop], Term.stops_at, :stop, resource)
+        add_directive(page_id, row[:stop], Property.stops_at.uri, :stop, resource)
       end
       if row.key?(:start)
-        add_directive(page_id, row[:start], Term.starts_at, :start, resource)
+        add_directive(page_id, row[:start], Property.starts_at.uri, :start, resource)
       end
     end
   end

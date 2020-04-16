@@ -13,22 +13,20 @@
 #   2. Store a local table remotely, using scp.
 
 class Table
-  def initialize(fields: nil,    # maps Term to column number
+  def initialize(property_positions: nil,  # maps Property to column number
                  header: nil,
                  path: nil,
-                 url: nil,
+                 url: nil,      # for reading over the web...
                  stage: nil,
                  separator: ',',
-                 ignore_lines: 1,
-                 workspace: nil)
-    @fields = fields     # URI to column index
+                 ignore_lines: 1)
+    @property_positions = property_positions     # URI to column index
     @header = header
     @path = path
     @url = url
     @stage = stage
     @separator = separator
     @ignore_lines = ignore_lines
-    @workspace = workspace     # used when url is supplied but path isn't
   end
 
   # List of paths: the the chunks, if split, or the single main csv
@@ -36,7 +34,7 @@ class Table
 
   def get_part_paths
     # Could transfer the file locally...
-    raise("Not only local filesystem: #{@url}") unless @path
+    raise("Not on local filesystem: #{@url}") unless @path
     dir = @path + ".chunks"
     if File.exists?(dir)
       File.glob("#{dir}/*.csv")
@@ -62,12 +60,12 @@ class Table
     end
   end
 
-  def field?(term)
-    @fields.key?(term)
+  def column?(prop)
+    @property_positions.key?(prop)
   end
 
-  def column_for_field(term)
-    @fields[term]
+  def column_for_property(prop)
+    @property_positions[prop]
   end
 
   def fetch                     # get_what
@@ -96,9 +94,13 @@ class Table
 
   def get_header
     return @header if @header
-    # Make up column headings based on field URIs
-    header = ['?' * @fields.size]
-    @fields.keys.each{|key| header[@fields[key] = key.split("/")[-1]]}
+    # Make up column headings based on column properties
+    header = ['?' * @property_positions.size]
+    @property_positions.keys.each do |prop|
+      STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
+      header[@property_positions[prop]] =
+        (prop.name || prop.uri.split("/")[-1])
+    end
     puts "Header: #{header.join(',')}"
     @header = header
     @header

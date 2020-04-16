@@ -8,41 +8,31 @@
 require 'csv'
 require 'net/http'
 require 'fileutils'
-require 'nokogiri'
-require 'yaml'
 require 'json'
 
 require 'term'
 require 'table'
 require 'dwca'
 require 'graph'
+require 'claes'
+require 'property'
 
 class Resource
 
   def initialize(system: nil,
-                 workspace_root: nil,
+                 # Specific to this resource
                  workspace: nil,
-                 publishing_url: nil,
                  publishing_id: nil,
-                 publishing_token: nil,
-                 repository_url: nil,
                  repository_id: nil,
-                 stage_scp: nil,
-                 stage_url: nil,
                  dwca: nil,
                  opendata_url: nil,
                  dwca_url: nil,
                  dwca_path: nil)
     @system = system
-    @workspace_root = workspace_root
+
     @workspace = workspace
-    @publishing_url = publishing_url
     @publishing_id = publishing_id ? publishing_id.to_i : nil
-    @publishing_token = publishing_token
-    @repository_url = repository_url
     @repository_id = repository_id ? repository_id.to_i : nil
-    @stage_scp = stage_scp
-    @stage_url = stage_url
     @dwca = dwca || Dwca.new(get_workspace,
                              opendata_url: opendata_url,
                              dwca_url: dwca_url,
@@ -161,37 +151,32 @@ class Resource
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
 
-  def harvest
+  def harvest_vernaculars
     @dwca.get_unpacked
     get_page_id_map
 
-    vt = @dwca.get_tables[Term.vernacular_name]      # a Table
-    raise("Cannot find vernaculars table (I see #{@tables.keys})") unless vt
-    harvest_vernaculars(vt)
+    vt = @dwca.get_table(Claes.vernacular_name)
 
-    # similarly for other types... maybe particular types should be selectable...
-
-  end
-
-  def harvest_vernaculars(vt)
     # open self.location, get a csv reader
 
-    terms = [Term.tnu_id,
-             Term.vernacular_namestring,
-             Term.language]
-    # These column headings will be used in LOAD CSV commands
-    out_header = ["page_id", "namestring", "language"]
-    indexes = terms.collect{|term| vt.column_for_field(term)}
-    puts "Indexes are #{indexes}"
+    props = [Property.tnu_id,
+             Property.vernacular_string,
+             Property.language_code]
+    # Input column position, in output order
+    in_positions = props.collect{|prop| vt.column_for_property(prop)}
+    puts "Positions in input are #{in_positions}"
+
+    out_positions = {}          # there must be an easier way
+    (0...props.size).each{|pos| out_positions[props[pos]] = pos}
 
     counter = 0
     csv_in = vt.open_csv_in
 
-    out_table = Table.new(header: out_header,
+    out_table = Table.new(property_positions: out_positions,
                           path: local_staging_path("vernaculars.csv"))
-    csv_out = vt.open_csv_out
+    csv_out = out_table.open_csv_out
     csv_in.each do |row_in|
-      row_out = indexes.collect{|index| row_in[index]}
+      row_out = in_positions.collect{|pos| row_in[pos]}
       tnu_id = row_out[0]
       if counter < 10
         puts "No TNU id: '#{row_in}'" unless tnu_id
@@ -313,13 +298,12 @@ class Resource
 
     page_id_map = {}
 
-    tt = @dwca.get_tables[Term.tnu]      # a Table
-    raise("Cannot find TNU table (I see #{@tables.keys})") unless tt
-    if tt.field?(Term.page_id)
+    tt = @dwca.get_table(Claes.tnu)      # a Table
+    if tt.column?(Property.page_id)
       puts "Page id assignments are in the TNU table"
       # get mapping from tnu_id table
-      tnu_id_column = tt.column_for_field(Term.tnu_id)
-      page_id_column = tt.column_for_field(Term.page_id)
+      tnu_id_column = tt.column_for_property(Property.tnu_id)
+      page_id_column = tt.column_for_property(Property.page_id)
       tt.open_csv_in.each do |row|
         page_id_map[row[tnu_id_column]] = row[page_id_column].to_i
       end

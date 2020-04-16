@@ -13,7 +13,7 @@ class System
   end
 
   def initialize(tag)
-    raise("No configuration tag specified") unless tag
+    raise("No configuration tag specified (try CONF=test)") unless tag
     @tag = tag
   end
 

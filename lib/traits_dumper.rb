@@ -43,8 +43,8 @@
 # Run it as a 'rake' task
 # ID=7674 CHUNK=20000 time bundle exec rake dump_traits:dump
 
-# Thanks to Bill Tozier for code review; but he is not to be held
-# responsible for anything you see here.
+# Thanks to Bill Tozier https://github.com/vaguery for code review;
+# but he is not to be held responsible for anything you see here.
 
 require 'csv'
 require 'fileutils'

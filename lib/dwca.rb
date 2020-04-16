@@ -5,7 +5,8 @@ require 'fileutils'
 require 'nokogiri'
 require 'open-uri'
 
-require_relative 'table'
+require 'table'
+require 'property'
 
 class Dwca
 
@@ -161,6 +162,8 @@ class Dwca
     end
   end
 
+  # @tables maps Claes objects to Table objects
+
   def get_tables
     return @tables if @tables
     get_unpacked
@@ -168,8 +171,17 @@ class Dwca
     @tables
   end
 
+  def get_table(claes)
+    uri = claes.uri
+    tables = get_tables
+    probe = tables[claes]
+    return probe if probe
+    name = tables.keys.collect{|claes| claes.name}
+    raise("No table for class #{claes.name}.  I see these: #{names}.")
+  end
+
   # Get the information that we'll need out of the meta.xml file
-  # Returns a hash from term URIs to table elements
+  # Returns a hash from classes ('claeses') to table elements
   # Adapted from harvester app/models/resource/from_meta_xml.rb self.analyze
   def from_xml(filename)
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
@@ -182,26 +194,28 @@ class Dwca
         STDERR.put("Not yet implemented: multiple files for same row type #{row_type}")
       else
         @table_configs[row_type] = table_element
-        tables[row_type] =
-          Table.new(File.join(@unpacked,
-                              table_element.css("location").first.text),
-                    table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
-                    table_element['ignoreHeaderLines'].to_i,
-                    parse_fields(table_element),
-                    self)
+        tables[Claes.get(row_type)] =
+          Table.new(path: File.join(@unpacked,
+                                    table_element.css("location").first.text),
+                    separator: table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
+                    ignore_lines: table_element['ignoreHeaderLines'].to_i,
+                    property_positions: parse_fields(table_element))
       end
     end
     tables
   end
 
+  # Parse <field> elements, returning hash from Property to 
+  # small integer
+
   def parse_fields(table_element)
-    fields_for_this_table = {}
+    positions_for_this_table = {}
     table_element.css('field').each do |field|
       i = field['index'].to_i
-      key = field['term']
-      fields_for_this_table[key] = i
+      prop = Property.get(field['term'])
+      positions_for_this_table[prop] = i
     end
-    fields_for_this_table
+    positions_for_this_table
   end
 
 end
