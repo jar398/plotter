@@ -55,6 +55,8 @@ require 'net/http'
 require 'json'
 require 'cgi'
 
+require 'graph'
+
 # An instance of the TraitsDumper class is sort of like a 'session'
 # for producing a ZIP file.  Its state of all the parameters needed to
 # harvest and write the required information.  The actual state for
@@ -63,10 +65,11 @@ require 'cgi'
 class TraitsDumper
   # This method is suitable for invocation from the shell via
   #  ruby -r "./lib/traits_dumper.rb" -e "TraitsDumper.main"
+  # Obsolete - use `rake traits:dump` instead.
   def self.main
     server = ENV['SERVER'] || "https://eol.org/"
     token = ENV['TOKEN'] || STDERR.puts("** No TOKEN provided")
-    query_fn = Proc.new {|cql| query_via_http(server, token, cql)}
+    query_fn = Graph.via_http(server, token)
 
     clade = ENV['ID']           # possibly nil
     tempdir = ENV['TEMP']       # temp dir = where to put intermediate csv files
@@ -92,9 +95,9 @@ class TraitsDumper
   def initialize(clade_page_id, tempdir, chunksize, query_fn)
     @clade = (clade_page_id ? Integer(clade_page_id) : nil)
     @tempdir = tempdir || File.join("/tmp", default_basename(@clade))
-    @chunksize = Integer(chunksize) if chunksize
+    @chunksize = chunksize.to_i if chunksize
     # If clade_page_id is nil, that means do not filter by clade
-    @query_fn = query_fn
+    @graph = Graph.new(query_fn)
   end
 
   # dest is name of zip file to be written, or nil for default
@@ -105,7 +108,9 @@ class TraitsDumper
              emit_traits,
              emit_metadatas]
     if not paths.include?(nil)
-      dest ||= (default_basename(@clade) + ".zip")
+      dest = "." unless dest
+      dest = File.join(dest, default_basename(@clade) + ".zip") if
+        File.directory?(dest)
       write_zip(paths, dest) 
     end
   end
@@ -457,33 +462,7 @@ class TraitsDumper
   # neography, HTTP, ...)
 
   def run_query(cql)
-    json = @query_fn.call(cql)
-    if json && json["data"].length > 100
-      # Throttle load on server
-      sleep(1)
-    end
-    json
-  end
-
-  # A particular query method for doing queries using the EOL v3 API over HTTP
-
-  def self.query_via_http(server, token, cql)
-    # Need to be a web client.
-    # "The Ruby Toolbox lists no less than 25 HTTP clients."
-    escaped = CGI::escape(cql)
-    uri = URI("#{server}service/cypher?query=#{escaped}")
-    request = Net::HTTP::Get.new(uri)
-    request['Authorization'] = "JWT #{token}"
-    use_ssl = uri.scheme.start_with?("https")
-    response = Net::HTTP.start(uri.hostname, uri.port, :use_ssl => use_ssl) {|http|
-      http.request(request)
-    }
-    if response.is_a?(Net::HTTPSuccess)
-      JSON.parse(response.body)    # can return nil
-    else
-      STDERR.puts(response.body)
-      nil
-    end
+    @graph.run_query(cql)
   end
 
   # Utility - convert native cypher output form to CSV

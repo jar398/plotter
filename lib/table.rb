@@ -19,7 +19,8 @@ class Table
                  url: nil,      # for reading over the web...
                  stage: nil,
                  separator: ',',
-                 ignore_lines: 1)
+                 ignore_lines: 1,
+                 claes: nil)
     @property_positions = property_positions     # URI to column index
     @header = header
     @path = path
@@ -27,7 +28,11 @@ class Table
     @stage = stage
     @separator = separator
     @ignore_lines = ignore_lines
+    @claes = claes
   end
+
+  def claes; @claes; end
+  def location; File.basename(@path); end
 
   # List of paths: the the chunks, if split, or the single main csv
   # file, if unsplit

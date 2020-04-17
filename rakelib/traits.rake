@@ -18,7 +18,7 @@ namespace :traits do
               File.join(system.get_workspace_root, "dump-#{clade || 'all'}")
     FileUtils.mkdir_p(tempdir)
     chunksize = ENV['CHUNK']    # possibly nil
-    dest = ENV['ZIP']
+    dest = ENV['ZIP'] || system.get_workspace_root
     TraitsDumper.new(clade, tempdir, chunksize, query_fn).dump_traits(dest)
 
   end

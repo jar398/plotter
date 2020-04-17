@@ -176,8 +176,7 @@ class Dwca
     tables = get_tables
     probe = tables[claes]
     return probe if probe
-    name = tables.keys.collect{|claes| claes.name}
-    raise("No table for class #{claes.name}.  I see these: #{names}.")
+    raise("No table for class #{claes.name}.")
   end
 
   # Get the information that we'll need out of the meta.xml file
@@ -185,24 +184,21 @@ class Dwca
   # Adapted from harvester app/models/resource/from_meta_xml.rb self.analyze
   def from_xml(filename)
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
-    table_element = doc.css('archive table')
-    @table_configs = {}
-    tables = {}
-    table_element.each do |table_element|
+    tables = doc.css('archive table').collect do |table_element|
       row_type = table_element['rowType']
-      if @table_configs.key?(row_type)
-        STDERR.put("Not yet implemented: multiple files for same row type #{row_type}")
-      else
-        @table_configs[row_type] = table_element
-        tables[Claes.get(row_type)] =
-          Table.new(path: File.join(@unpacked,
-                                    table_element.css("location").first.text),
+      claes = Claes.get(row_type)
+      name = table_element.css("location").first.text
+      tables[claes] =
+          Table.new(path: File.join(@unpacked, name),
                     separator: table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
                     ignore_lines: table_element['ignoreHeaderLines'].to_i,
-                    property_positions: parse_fields(table_element))
-      end
+                    property_positions: parse_fields(table_element),
+                    claes: claes)
     end
-    tables
+    claes_to_table = {}
+    # TBD: Complain if a claes has multiple tables???
+    tables.each {|table| claes_to_table[table.claes] = table}
+    claes_to_table
   end
 
   # Parse <field> elements, returning hash from Property to 
