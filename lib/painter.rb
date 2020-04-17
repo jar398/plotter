@@ -50,9 +50,7 @@ class Painter
   end
 
   def get_graph
-    return @graph if @graph
-    @graph = @resource.get_graph
-    @graph
+    @resource.system.get_graph
   end
 
   # Infer and stage trait relationships (publish is separate)

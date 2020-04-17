@@ -1,6 +1,5 @@
 # Typical sequence:
-#   infer
-#   stage
+#   paint
 #   publish
 
 require 'resource'
