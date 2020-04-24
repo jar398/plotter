@@ -63,14 +63,6 @@ class Resource
 
   def system; @system; end
 
-  def get_stage_url
-    @system.get_stage_url
-  end
-
-  def get_graph
-    @system.get_graph
-  end
-
   def get_record(publishing_id)
     # Get the resource record, if any, from the publisher's resource list
     records = JSON.parse(Net::HTTP.get(URI.parse("#{@publishing_url}/resources.json")))
@@ -246,7 +238,7 @@ class Resource
              DETACH DELETE v
              RETURN COUNT(v)
              LIMIT 10000000"
-    r = get_graph.run_query(query)
+    r = @system.get_graph.run_query(query)
     count = r ? r["data"][0][0] : 0
     STDERR.puts("Erased #{count} relationships")
   end
@@ -258,7 +250,7 @@ class Resource
   def publish_vernaculars
 
     # Make sure the resource node is there
-    get_graph.run_query(
+    @system.get_graph.run_query(
       "MERGE (r:Resource {resource_id: #{get_publishing_id}})
        RETURN r:resource_id
        LIMIT 1")
@@ -275,7 +267,7 @@ class Resource
                    (r)
              RETURN COUNT(row)
              LIMIT 1"
-    r = get_graph.run_query(query)
+    r = @system.get_graph.run_query(query)
     count = r ? r["data"][0][0] : 0
     STDERR.puts("Merged #{count} relationships from #{url}")
   end

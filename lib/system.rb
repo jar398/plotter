@@ -26,24 +26,24 @@ class System
     @config
   end
 
-  def get_publishing_url
-    publishing_url ||= get_config["publishing"]["url"]
-    publishing_url += "/" unless publishing_url.end_with?("/")
-    publishing_url
-  end
-
-  def get_publishing_token
-    return @publishing_token if @publishing_token
-    path = get_config["publishing"]["update_token_file"]
-    raise("No token file specified") unless path
-    @publishing_token = File.read(path).strip
-    @publishing_token
-  end
-
   def get_graph
     return @graph if @graph
-    query_fn = Graph.via_http(get_publishing_url, get_publishing_token)
-    @graph = Graph.new(query_fn)
+    method = get_config["cypher"]["method"]
+    if method == "eol_api"   # Use EOL web site v3 API
+
+      eol_api_url = get_config["api"]["url"]
+      raise("No API (publishing) site specified") unless eol_api_url
+
+      token_path = get_config["api"]["update_token_file"]
+      raise("No token file specified") unless token_path
+      token = File.read(token_path).strip
+
+      @graph = Graph.via_http(eol_api_url, token)
+    elsif method == "neography"     # Talk to neo4j directly
+      @graph = Graph.via_neography(get_config["neography"]["url"])
+    else
+      raise "unrecognized cypher method #{method}"
+    end
     @graph
   end
 
@@ -54,7 +54,7 @@ class System
   end
 
   def get_repository_url
-    @repository_url ||= get_config["repository"]["url"]
+    @repository_url = get_config["repository"]["url"]
     @repository_url += "/" unless @repository_url.end_with?("/")
     @repository_url
   end

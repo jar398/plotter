@@ -47,10 +47,11 @@ class Painter
   def initialize(resource)
     @resource = resource
     @pagesize = 10000
+    @system = resource.system
   end
 
   def get_graph
-    @resource.system.get_graph
+    @system.get_graph
   end
 
   # Infer and stage trait relationships (publish is separate)
@@ -329,7 +330,7 @@ class Painter
 
   def publish(resource = @resource)
 
-    inf_url = "#{resource.get_stage_url}#{resource.get_publishing_id.to_s}-inferences/"
+    inf_url = "#{system.get_stage_url}#{resource.get_publishing_id.to_s}-inferences/"
     puts inf_url
     table = Table.new(url: "#{inf_url}inferences.csv")
 

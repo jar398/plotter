@@ -7,9 +7,17 @@ class Graph
 
   # Default method for accessing the graph = EOL v3 API
 
-  def self.via_http(publishing_server, token)
+  def self.via_http(eol_api_url, token)
+    eol_api_url += "/" unless eol_api_url.end_with?("/")
     raise("Token not supplied") unless token
-    Proc.new {|cql| query_via_http(cql, publishing_server, token)}
+    query_fn = Proc.new {|cql| query_via_http(cql, eol_api_url, token)}
+    Graph.new(query_fn)
+  end
+
+  def self.via_neography(url)
+    connection = Neography::Rest.new(url)
+    query_fn = Proc.new {|cql| connection.execute_query(cql)}
+    Graph.new(query_fn)
   end
 
   # Replace query_fn if desired with TraitBank::query, some other
