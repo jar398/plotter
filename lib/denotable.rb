@@ -21,7 +21,7 @@ class Denotable
   def initialize(uri, name = nil)
     @uri = uri
     @name = name
-    puts "Registered #{name} with URI #{uri}"
+    # puts "Registered #{name} with URI #{uri}"
     Registry.register(self)
   end
 

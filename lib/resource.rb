@@ -82,8 +82,8 @@ class Resource
     records_index[publishing_id]
   end
 
-  def map_to_page_id(tnu_id)
-    @page_id_map[tnu_id]
+  def map_to_page_id(taxon_id)
+    @page_id_map[taxon_id]
   end
 
   def dir_in_workspace(dir_name)
@@ -111,53 +111,87 @@ class Resource
     get_page_id_map
 
     vt = @dwca.get_table(Claes.vernacular_name)
+    puts "# Normalized header would be\n  #{vt.get_properties.collect{|p|(p ? p.name : '?')}}"
 
     # open self.location, get a csv reader
 
-    props = [Property.tnu_id,
-             Property.vernacular_string,
-             Property.language_code]
-    # Input column position, in output order
-    in_positions = props.collect{|prop| vt.column_for_property(prop)}
-    puts "Positions in input are #{in_positions}"
+    # For resource 40, column URIs are vernacularName, language, taxonID
 
-    out_positions = {}          # there must be an easier way
-    (0...props.size).each{|pos| out_positions[props[pos]] = pos}
+    # The output file wants a page_id.  If there is no page_id column,
+    # figure out the page_id from the taxon_id column.
+    page_id_position = vt.column_for_property(Property.page_id)
+    taxon_id_position = vt.column_for_property(Property.taxon_id)
+    puts "# Page id is in input column #{page_id_position || '?'}"
+    puts "# Taxon id is in input column #{taxon_id_position || '??'}"
+    if taxon_id_position == nil and page_id_position == nil
+      raise("Found neither taxon nor page id in input table")
+    elsif page_id_position == nil
+      puts "# Found taxon id column in input (will use id map), #{taxon_id_position}"
+    else
+      puts "# Found page id column in input, #{page_id_position}"
+    end
+
+    # Column order for output
+    props = [Property.page_id,
+             Property.vernacular_string,
+             Property.language_code,
+             Property.is_preferred_name]
+
+    # Where these columns are in the input
+    mapping = props.collect do |prop|
+      [prop, vt.column_for_property(prop)]
+    end
+    puts "# Input positions are #{mapping.collect{|x,y|y}}"
+
+    fname = "vernaculars.csv"
+    out_table = Table.new(properties: props,
+                          location: fname,
+                          path: local_staging_path(fname))
 
     counter = 0
     csv_in = vt.open_csv_in
-
-    out_table = Table.new(property_positions: out_positions,
-                          path: local_staging_path("vernaculars.csv"))
     csv_out = out_table.open_csv_out
     csv_in.each do |row_in|
-      row_out = in_positions.collect{|pos| row_in[pos]}
-      tnu_id = row_out[0]
-      if counter < 10
-        puts "No TNU id: '#{row_in}'" unless tnu_id
-        puts "No namestring: '#{row_in}'" unless row_out[1]
-        puts "No language: '#{row_in}'" unless row_out[2]
-      end
-      if tnu_id
-        page_id = map_to_page_id(tnu_id)
-        if page_id
-          row_out[0] = page_id
-          csv_out << row_out
-          puts row_out if counter < 5
+
+      row_out = mapping.collect do |pair|
+        (prop, in_pos) = pair
+        # in_pos = column of this property in the input table, if any
+        if in_pos != nil
+          value = row_in[in_pos]
+          if value
+            value
+          else
+            puts "** No #{prop.name} at row #{counter}" if counter < 10
+            -123
+          end
+        elsif prop == Property.page_id
+          # No column for page id.  Map taxon id to it.
+          taxon_id = row_in[taxon_id_position]
+          page_id = map_to_page_id(taxon_id)
+          if not taxon_id
+            puts "** No taxon id at #{taxon_id_position} in row #{row_in}" if counter < 10
+          end
+          if page_id
+            page_id
+          else
+            puts "** No page id for taxon id #{taxon_id}" if counter < 10
+            -345
+          end
+        elsif prop == Property.is_preferred_name
+          # Default value associated with this property
+          1
         else
-          puts "No page id for TNU id #{tnu_id}" if counter < 10
+          puts "** Need column for property #{prop.name}" if counter < 10
+          -456
         end
       end
+      csv_out << row_out
       counter += 1
     end
+    puts "#{counter} data rows in csv file"
     csv_out.close
     csv_in.close
-
-    puts "#{counter} data rows in csv file"
-
-    # TBD: Write new csv file for use with LOAD CSV
   end
-
 
   # Copy the publish/ directory out to the staging host.
   # dir_name specifies a subdirector of the workspace.
@@ -165,7 +199,7 @@ class Resource
   def stage(dir_name = "stage")
     local_staging_path = File.join(@workspace, dir_name)
     prepare_manifests(local_staging_path)
-    stage_specifier = "#{@sytem.get_stage_scp}#{get_publishing_id.to_s}-#{dir_name}"
+    stage_specifier = "#{@system.get_stage_scp}#{get_publishing_id.to_s}-#{dir_name}"
     STDERR.puts("Copying #{local_staging_path} to #{stage_specifier}")
     stdout_string, status = Open3.capture2("rsync -va #{local_staging_path}/ #{stage_specifier}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
@@ -229,14 +263,15 @@ class Resource
        RETURN r:resource_id
        LIMIT 1")
 
-    url = "#{get_stage_url}#{get_publishing_id.to_s}-stage/vernaculars.csv"
+    url = "#{@system.get_stage_url}#{get_publishing_id.to_s}-stage/vernaculars.csv"
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
              WITH row, toInteger(row.page_id) AS page_id
              MATCH (r:Resource {resource_id: #{get_publishing_id}})
              MERGE (:Page {page_id: page_id})-[:vernacular]->
                    (:Vernacular {namestring: row.namestring,
-                                 language: row.language})-[:supplier]->
+                                 language: row.language,
+                                 is_preferred_name: row.is_preferred_name})-[:supplier]->
                    (r)
              RETURN COUNT(row)
              LIMIT 1"
@@ -253,14 +288,14 @@ class Resource
 
     page_id_map = {}
 
-    tt = @dwca.get_table(Claes.tnu)      # a Table
-    if tt.column?(Property.page_id)
-      puts "Page id assignments are in the TNU table"
-      # get mapping from tnu_id table
-      tnu_id_column = tt.column_for_property(Property.tnu_id)
+    tt = @dwca.get_table(Claes.taxon)      # a Table
+    if tt.is_column(Property.page_id)
+      puts "Page id assignments are in the #{tt.location} table"
+      # get mapping from taxon_id table
+      taxon_id_column = tt.column_for_property(Property.taxon_id)
       page_id_column = tt.column_for_property(Property.page_id)
       tt.open_csv_in.each do |row|
-        page_id_map[row[tnu_id_column]] = row[page_id_column].to_i
+        page_id_map[row[taxon_id_column]] = row[page_id_column].to_i
       end
     else
       repository_url = @system.get_repository_url
@@ -297,12 +332,12 @@ class Resource
           CSV.parse(response.body, headers: true) do |row|
             count += 1
             all += 1
-            tnu_id = row["resource_pk"]
+            taxon_id = row["resource_pk"]
             page_id = row["page_id"].to_i
-            page_id_map[tnu_id] = page_id
+            page_id_map[taxon_id] = page_id
             if all < 5
-              puts "#{tnu_id} -> #{page_id}"
-              puts "No TNU id: #{row}" unless tnu_id
+              puts "#{taxon_id} -> #{page_id}"
+              puts "No TNU id: #{row}" unless taxon_id
               puts "No page id: #{row}" unless page_id
             end
           end

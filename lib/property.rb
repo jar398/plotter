@@ -2,18 +2,21 @@ require 'denotable'
 require 'registry'
 
 # The names are going to occur as selectors on rows in cypher queries
-# (e.g. 'row.tnu')... so they all need to be valid cypher identifiers
+# (e.g. 'row.taxon')... so they all need to be valid cypher identifiers
 
 class Property < Denotable
   # inherits: initialize, etc.
 
   class << self
 
-    MAPPING = {"vernacular_string" => "http://rs.tdwg.org/dwc/terms/vernacularName",
-               "language_code" => "http://purl.org/dc/terms/language",
-               "taxon_id" => "http://rs.tdwg.org/dwc/terms/taxonID",
+    MAPPING = {"taxon_id" => "http://rs.tdwg.org/dwc/terms/taxonID",
                "page_id" => "http://eol.org/schema/EOLid",
                "scientific_name" => "http://rs.tdwg.org/dwc/terms/scientificName",
+
+               "vernacular_string" => "http://rs.tdwg.org/dwc/terms/vernacularName",
+               "language_code" => "http://purl.org/dc/terms/language",
+               "is_preferred_name" => "http://rs.gbif.org/terms/1.0/isPreferredName",
+
                "starts_at" => "https://eol.org/schema/terms/starts_at",
                "stops_at" => "https://eol.org/schema/terms/stops_at"}
     puts "initializing properties"
@@ -34,10 +37,12 @@ class Property < Denotable
     # Particular properties mentioned in the ruby code
 
     # Properties in tables generally
+    def taxon_id; named("taxon_id"); end
+    def page_id; named("page_id"); end
+
     def vernacular_string; named("vernacular_string"); end
     def language_code; named("language_code"); end
-    def tnu_id; named("taxon_id"); end
-    def page_id; named("page_id"); end
+    def is_preferred_name; named("is_preferred_name"); end
 
     # Predicate property on MetaData nodes
     def starts_at; named("starts_at"); end
@@ -45,4 +50,3 @@ class Property < Denotable
 
   end
 end
-

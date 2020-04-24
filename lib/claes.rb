@@ -18,7 +18,7 @@ class Claes < Denotable
     end
 
     # Particular classes mentioned in the ruby code
-    def tnu; named("Taxon"); end
+    def taxon; named("Taxon"); end
     def vernacular_name; named("VernacularName"); end
 
   end

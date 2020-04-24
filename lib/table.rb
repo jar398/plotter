@@ -13,26 +13,83 @@
 #   2. Store a local table remotely, using scp.
 
 class Table
-  def initialize(property_positions: nil,  # maps Property to column number
+  class << self
+    def positionalize(position_map)  # position_map : property -> position
+      props = Array.new(position_map.values.max + 1)
+      position_map.each {|prop, pos| props[pos] = prop}
+      puts "# Column properties: #{props.collect{|prop|prop.name}}"
+      props
+    end
+
+    def depositionalize(position_array)
+      m = {}
+      position_array.zip((0...position_array.size)).each do |pair|
+        (prop, i) = pair
+        i > 0
+        prop.name
+        m[prop] = i
+      end
+      m
+    end
+  end
+
+  def initialize(properties: nil,  # array of Property
+                 property_positions: nil,  # maps Property to column number
                  header: nil,
+                 location: nil,
                  path: nil,
                  url: nil,      # for reading over the web...
                  stage: nil,
                  separator: ',',
                  ignore_lines: 1,
                  claes: nil)
+    properties = Table.positionalize(property_positions) unless properties
+    @properties = properties
+    property_positions = Table.depositionalize(properties) unless property_positions
     @property_positions = property_positions     # URI to column index
-    @header = header
-    @path = path
-    @url = url
-    @stage = stage
+    @property_positions.collect do |prop, pos|
+      raise "bogus property" unless prop.name
+      raise "bogus position" unless pos >= 0
+    end
+    puts @property_positions.collect{|prop,pos|"#{prop.name}->#{pos}"}
+    @claes = claes
+    @location = location    # file basename, or nil
+    if not separator
+      puts "# Table.new: inferring from location"
+      # "you should use double quote when you want to escape a character"
+      separator = (location.end_with?('.csv') ? ',' : "\t")
+      puts "# Table.new 1: Separator is [#{separator}], length #{separator.length}"
+    end
+    if separator.length > 1
+      puts "# Table.new: replacing with single tab char"
+      separator = "\t"
+      puts "# Table.new 2: Separator is [#{separator}], length #{separator.length}"
+    else
+      puts "# Table.new 3: No change, length #{separator.length}"
+    end
+    puts "# Table.new: Separator is [#{separator}], length #{separator.length}"
     @separator = separator
     @ignore_lines = ignore_lines
-    @claes = claes
+
+    @header = header        # raw header as it occurs in the file (array), or nil
+    @path = path            # full pathname to file location, or nil
+    @url = url              # URL where we can retrieve the table, or nil
+    @stage = stage          # staging location for scp, or nil
   end
 
   def claes; @claes; end
-  def location; File.basename(@path); end
+  def location; @location || File.basename(@path); end
+
+  def get_properties; @properties; end
+
+  def is_column(prop)
+    @property_positions.key?(prop)
+  end
+
+  # Nil if column not present...
+  def column_for_property(prop)
+    @property_positions[prop]
+  end
 
   # List of paths: the the chunks, if split, or the single main csv
   # file, if unsplit
@@ -65,14 +122,6 @@ class Table
     end
   end
 
-  def column?(prop)
-    @property_positions.key?(prop)
-  end
-
-  def column_for_property(prop)
-    @property_positions[prop]
-  end
-
   def fetch                     # get_what
     raise("No URL for this table: #{@path}") unless @url
     raise("No local path for this table: #{@url}") unless @path
@@ -87,8 +136,11 @@ class Table
 
   def open_csv_in(part_path = @path)
     # But, see Resource.get_page_id_map and Paginator.
+    puts "# Input column separator is supposed to be [#{@separator}], length #{@separator.length}"
     quote_char = (@separator == "\t" ? "\x00" : '"')
     csv = CSV.open(part_path, "r:UTF-8", col_sep: @separator, quote_char: quote_char)
+    puts "# Input column separator is actually [#{csv.col_sep}], length #{csv.col_sep.length}"
+
     (0...@ignore_lines).each do |counter|
       row = csv.shift
       @header = row unless @header
@@ -97,15 +149,20 @@ class Table
     csv
   end
 
+  # Return the raw header, or synthesize one if unknown
+
   def get_header
     return @header if @header
     # Make up column headings based on column properties
-    header = ['?' * @property_positions.size]
-    @property_positions.keys.each do |prop|
-      STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
-      header[@property_positions[prop]] =
-        (prop.name || prop.uri.split("/")[-1])
-    end
+    header =
+      @properties.collect do |prop|
+        if prop
+          STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
+          (prop.name || prop.uri.split("/")[-1])
+        else
+          "?"
+        end
+      end
     puts "Header: #{header.join(',')}"
     @header = header
     @header

@@ -16,6 +16,7 @@ class Dwca
     @dwca_path = dwca_path         # where the dwca is stored in local file system
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
     @opendata_url = opendata_url  # URL of opendata resource landing page
+    @tables = nil
   end
 
   def get_workspace
@@ -185,15 +186,20 @@ class Dwca
   def from_xml(filename)
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
     tables = doc.css('archive table').collect do |table_element|
-      row_type = table_element['rowType']
+      row_type = table_element['rowType']    # a URI
       claes = Claes.get(row_type)
-      name = table_element.css("location").first.text
-      tables[claes] =
-          Table.new(path: File.join(@unpacked, name),
-                    separator: table_element['fieldsTerminatedBy'].gsub("\\t", "\t"),
-                    ignore_lines: table_element['ignoreHeaderLines'].to_i,
-                    property_positions: parse_fields(table_element),
-                    claes: claes)
+      STDERR.puts "# Table #{claes.name}"
+      location = table_element.css("location").first.text
+      positions = parse_fields(table_element)
+      sep = table_element['fieldsTerminatedBy']
+      puts "## Separator is [#{sep}]"
+      ig = table_element['ignoreHeaderLines']
+      Table.new(property_positions: positions,
+                location: location,
+                path: File.join(@unpacked, location),
+                separator: sep,
+                ignore_lines: (ig ? ig.to_i : 0),
+                claes: claes)
     end
     claes_to_table = {}
     # TBD: Complain if a claes has multiple tables???
