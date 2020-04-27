@@ -25,20 +25,36 @@ class Resource
                  id: nil,
                  publishing_id: nil,
                  repository_id: nil,
+                 opendata_url: nil, # for opendata landing page
                  dwca: nil,
-                 opendata_url: nil,
-                 dwca_url: nil,
+                 dwca_url: nil,     # for the dwca itself
                  dwca_path: nil)
     @system = system
-
+    opendata_url = opendata_url || puts("Missing opendata_url")
+    puts "Landing page is at #{opendata_url}"
+    dwca_url ||= (opendata_url ? get_dwca_url(opendata_url) : nil)
+    puts "DWCA is at #{dwca_url}"
     @workspace = workspace
+    id = id.to_i
     publishing_id ||= id
     @publishing_id = publishing_id ? publishing_id.to_i : nil
     @repository_id = repository_id ? repository_id.to_i : nil
     @dwca = dwca || Dwca.new(get_workspace,
-                             opendata_url: opendata_url,
                              dwca_url: dwca_url,
                              dwca_path: dwca_path)
+  end
+
+  # Adapted from harvester app/models/resource/from_open_data.rb.
+  # The HTML file is small; no need to cache it.
+  def get_dwca_url(opendata_url)
+    begin
+      raw = open(opendata_url)
+    rescue Net::ReadTimeout => e
+      fail_with(e)
+    end
+    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
+    html = Nokogiri::HTML(raw)
+    html.css('p.muted a').first['href']
   end
 
   def get_publishing_id

@@ -132,7 +132,7 @@ class Table
     # But, see Resource.get_page_id_map and Paginator.
     quote_char = (@separator == "\t" ? "\x00" : '"')
 
-    chunks_dir = path_path + ".chunks"
+    chunks_dir = part_path + ".chunks"
     if File.exist?(chunks_dir)
       chunk_paths = File.glob(File.join(chunks_dir, "*.csv"))
       puts "Found #{chunk_paths.length} chunks"

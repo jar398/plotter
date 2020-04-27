@@ -10,12 +10,11 @@ require 'property'
 
 class Dwca
 
-  def initialize(workspace, dwca_path: nil, dwca_url: nil, opendata_url: nil)
+  def initialize(workspace, dwca_path: nil, dwca_url: nil)
     @dwca_workspace = File.join(workspace, "dwca")
     @unpacked = File.join(@dwca_workspace, "unpacked")
     @dwca_path = dwca_path         # where the dwca is stored in local file system
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
-    @opendata_url = opendata_url  # URL of opendata resource landing page
     @tables = nil
   end
 
@@ -32,26 +31,6 @@ class Dwca
     unpack_archive(get_archive)
   end
 
-  def get_opendata_url
-    return @opendata_url if @opendata_url
-    raise("Need opendata landing page URL, but don't know what it is")
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb.
-  # The HTML file is small; no need to cache it.
-  def get_dwca_url
-    return @dwca_url if @dwca_url
-    begin
-      raw = open(get_opendata_url)
-    rescue Net::ReadTimeout => e
-      fail_with(e)
-    end
-    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
-    html = Nokogiri::HTML(raw)
-    @dwca_url = html.css('p.muted a').first['href']
-    @dwca_url
-  end
-
   # Get the DWCA from the Internet, if haven't done so already
   # Adapted from harvester app/models/resource/from_open_data.rb
 
@@ -60,15 +39,13 @@ class Dwca
     return @dwca_path if @dwca_path
     # We don't know the path.  Need to figure out the extension from
     # the URL.
-    dwca_url = get_dwca_url
-    ext = dwca_url.match?(/zip$/) ? 'zip' : 'tgz'
+    ext = @dwca_url.match?(/zip$/) ? 'zip' : 'tgz'
     @dwca_path = File.join(@dwca_workspace, "dwca.#{ext}")
     @dwca_path
   end
 
   def get_archive
     # Figure out where the dwca file is supposed to be locally
-    dwca_url = get_dwca_url
     dwca_path = get_dwca_path
     # Use existing archive if it's there
     if url_valid? && File.exist?(dwca_path) && File.size(dwca_path).positive?
@@ -77,14 +54,14 @@ class Dwca
       # Download the archive file from Internet if it's not
       `rm -rf #{@dwca_workspace}`
       ws = get_workspace    # create the directory
-      STDERR.puts "Copying #{dwca_url} to #{dwca_path}"
+      STDERR.puts "Copying #{@dwca_url} to #{dwca_path}"
       File.open(dwca_path, 'wb') do |file|
-        open(dwca_url, 'rb') do |input|
+        open(@dwca_url, 'rb') do |input|
           file.write(input.read)
         end
       end
       raise('Did not download') unless File.exist?(dwca_path) && File.size(dwca_path).positive?
-      File.write(File.join(ws, "dwca_url"), dwca_url)
+      File.write(File.join(ws, "dwca_url"), @dwca_url)
     end
     STDERR.puts "... #{File.size(dwca_path)} octets"
     @dwca_path = dwca_path

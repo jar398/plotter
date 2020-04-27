@@ -50,6 +50,7 @@ class System
   def get_workspace_root        # For all resources
     return @workspace_root if @workspace_root
     @workspace_root = get_config["workspace"]["path"]
+    puts("Workspace root is #{@workspace_root}")
     @workspace_root
   end
 
