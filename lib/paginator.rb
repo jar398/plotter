@@ -55,29 +55,27 @@ class Paginator
   # exists the query is not repeated - the results from the previous
   # run are used directly without verification.
 
-  def supervise_query(query, headings, chunksize, path, skipping=true)
-    if File.exist?(path)
-      STDERR.puts "Using cached file #{path}"
-      path
+  def supervise_query(query, headings, chunksize, csv_path,
+                      skipping=true, keep_chunks = False)
+    if File.exist?(csv_path)
+      STDERR.puts "Using cached file #{csv_path}"
+      csv_path
     else
-      # Create a directory path.chunks to hold the chunks
-      chunks_dir = path + ".chunks"
+      # Create a directory csv_path.chunks to hold the chunks
+      chunks_dir = csv_path + ".chunks"
       if Dir.exist?(chunks_dir) && Dir.entries(chunks_dir).length > 2
         STDERR.puts "There are cached results in #{chunks_dir}"
       end
       begin
-        chunks, count = get_query_chunks(query, headings, chunksize, chunks_dir, skipping)
+        chunks, count = get_query_chunks(query, headings, chunksize, csv_path, skipping)
         if count > 0
-          STDERR.puts("#{File.basename(path)}: #{chunks.length} chunks, #{count} records")
+          STDERR.puts("#{File.basename(csv_path)}: #{chunks.length} chunks, #{count} records")
         end
-        # This always writes a .csv file to path, even if it's empty.
-        assemble_chunks(chunks, path)
-        if Dir.exist?(chunks_dir) && Dir.entries(chunks_dir).length <= 2 # . and ..
-          FileUtils.rmdir chunks_dir
-        end
-        path
+        # This always writes a .csv file to csv_path, even if it's empty.
+        assemble_chunks(chunks, csv_path, keep_chunks)
+        csv_path
       rescue => e
-        STDERR.puts "** Failed to generate #{path}"
+        STDERR.puts "** Failed to generate #{csv_path}"
         STDERR.puts "** Exception: #{e}"
         STDERR.puts e.backtrace.join("\n")
         nil
@@ -92,8 +90,8 @@ class Paginator
   # A file will be created for every successful query, but the pathname
   # is only included in the returned list if it contains at least one row.
 
-  def get_query_chunks(query, headings, chunksize, chunks_dir, skipping)
-    limit = (chunksize ? "#{chunksize}" : "10000000")
+  def get_query_chunks(query, headings, chunksize, csv_path, skipping)
+    limit = (chunksize ? "#{chunksize}" : "1000000")
     chunks = []
     skip = 0
 
@@ -102,6 +100,7 @@ class Paginator
     while true
       # Fetch it one chunk at a time
       basename = (chunksize ? "#{skip}_#{chunksize}" : "#{skip}")
+      chunks_dir = csv_path + ".chunks"
       chunk_path = File.join(chunks_dir, "#{basename}.csv")
       if File.exist?(chunk_path)
         if File.size(chunk_path) > 0
@@ -142,27 +141,40 @@ class Paginator
   end
 
   # Combine the chunks files (for a single table) into a single master
-  # .csv file which is stored at path.
-  # Always returns path, where a file (perhaps empty) will be found.
+  # .csv file which is stored at csv_path.
+  # Always returns csv_path, where a file (perhaps empty) will be found.
 
-  def assemble_chunks(chunks, path)
+  def assemble_chunks(csv_path,
+                      assemble = True,
+                      keep_chunks = nil)
+    keep_chunks = not(assemble) unless keep_chunks != nil
+    chunks_dir = csv_path + ".chunks"
+    chunk_paths = Dir.glob(File.join(chunks_dir, "*.csv"))
     # Concatenate all the chunks together
-    FileUtils.mkdir_p File.dirname(path)
-    if chunks.size == 0
-      FileUtils.touch(path)
-    elsif chunks.size == 1
-      FileUtils.mv chunks[0], path
+    if chunk_paths.size == 0
+      FileUtils.touch(csv_path)
+      FileUtils.rmdir chunks_dir # should be empty
+    elsif chunk_paths.size == 1
+      FileUtils.mv chunk_paths[0], csv_path
+      FileUtils.rmdir chunks_dir # should be empty
     else
-      temp = path + ".new"
-      tails = chunks.drop(1).map { |path| "tail +2 #{path}" }
-      more = tails.join(';')
-      command = "(cat #{chunks[0]}; #{more}) >#{temp}"
-      system command
-      FileUtils.mv temp, path
+      if assemble
+        temp = csv_path + ".new"
+        tails = chunk_paths.drop(1).map { |path| "tail +2 #{path}" }
+        more = tails.join(' && ')
+        command = "(cat #{chunk_paths[0]}; #{more}) >#{temp}"
+        system command
+        FileUtils.mv temp, csv_path
+      end
       # We could delete the directory and all the files in it, but
       # instead let's leave it around for debugging (or something)
+      if not keep_chunks &&
+              Dir.exist?(chunks_dir) && Dir.entries(chunks_dir).length <= 2
+        # Delete all the chunks first !???
+        FileUtils.rmdir chunks_dir
+      end
     end
-    path
+    csv_path
   end
 
   # Utility - convert native cypher output form to CSV

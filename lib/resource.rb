@@ -22,6 +22,7 @@ class Resource
   def initialize(system: nil,
                  # Specific to this resource
                  workspace: nil,
+                 id: nil,
                  publishing_id: nil,
                  repository_id: nil,
                  dwca: nil,
@@ -31,6 +32,7 @@ class Resource
     @system = system
 
     @workspace = workspace
+    publishing_id ||= id
     @publishing_id = publishing_id ? publishing_id.to_i : nil
     @repository_id = repository_id ? repository_id.to_i : nil
     @dwca = dwca || Dwca.new(get_workspace,
@@ -99,29 +101,6 @@ class Resource
   #  in app/models/resource_harvester.rb
 
   def harvest_vernaculars
-    @dwca.get_unpacked
-    get_page_id_map
-
-    vt = @dwca.get_table(Claes.vernacular_name)
-    puts "# Normalized header would be\n  #{vt.get_properties.collect{|p|(p ? p.name : '?')}}"
-
-    # open self.location, get a csv reader
-
-    # For resource 40, column URIs are vernacularName, language, taxonID
-
-    # The output file wants a page_id.  If there is no page_id column,
-    # figure out the page_id from the taxon_id column.
-    page_id_position = vt.column_for_property(Property.page_id)
-    taxon_id_position = vt.column_for_property(Property.taxon_id)
-    puts "# Page id is in input column #{page_id_position || '?'}"
-    puts "# Taxon id is in input column #{taxon_id_position || '??'}"
-    if taxon_id_position == nil and page_id_position == nil
-      raise("Found neither taxon nor page id in input table")
-    elsif page_id_position == nil
-      puts "# Found taxon id column in input (will use id map), #{taxon_id_position}"
-    else
-      puts "# Found page id column in input, #{page_id_position}"
-    end
 
     # Column order for output
     props = [Property.page_id,
@@ -129,11 +108,36 @@ class Resource
              Property.language_code,
              Property.is_preferred_name]
 
+    @dwca.get_unpacked          # Extract meta.xml and so on
+
+    vt = @dwca.get_table(Claes.vernacular_name)
+    puts "# Found these columns:\n  #{vt.get_properties.collect{|p|(p ? p.name : '?')}}"
+
+    # For resource 40, input columns are vernacularName, language, taxonID
+
+    if props.include?(Property.page_id)
+      # The output file wants a page_id.  If there is no page_id column,
+      # figure out the page_id from the taxon_id column.
+      page_id_position = vt.column_for_property(Property.page_id)
+      taxon_id_position = vt.column_for_property(Property.taxon_id)
+      if page_id_position != nil
+        puts "# Found page id column in input table at position #{page_id_position}"
+        puts "#  Will use page id column from this input"
+      else
+        if taxon_id_position == nil
+          raise("Found neither taxon nor page id in input table")
+        end
+        puts "# Page id column not found in input table"
+        puts "#  Will use page id map from taxon file or content server"
+        get_page_id_map
+      end
+    end
+
     # Where these columns are in the input
     mapping = props.collect do |prop|
       [prop, vt.column_for_property(prop)]
     end
-    puts "# Input positions are #{mapping.collect{|x,y|y}}"
+    puts "# Input position for each output position: #{mapping.collect{|x,y|y}}"
 
     fname = "vernaculars.csv"
     out_table = Table.new(properties: props,
@@ -159,10 +163,10 @@ class Resource
         elsif prop == Property.page_id
           # No column for page id.  Map taxon id to it.
           taxon_id = row_in[taxon_id_position]
-          page_id = map_to_page_id(taxon_id)
           if not taxon_id
-            puts "** No taxon id at #{taxon_id_position} in row #{row_in}" if counter < 10
+            puts "** No taxon id at #{taxon_id_position} for row #{row_in}" if counter < 10
           end
+          page_id = map_to_page_id(taxon_id)
           if page_id
             page_id
           else
@@ -243,6 +247,18 @@ class Resource
     STDERR.puts("Erased #{count} relationships")
   end
 
+  def count; count_vernaculars; end
+
+  def count_vernaculars
+    query = "MATCH (r:Resource {resource_id: #{get_publishing_id}})
+             MATCH (v:Vernacular)-[:supplier]->(r)
+             RETURN COUNT(v)
+             LIMIT 1"
+    r = @system.get_graph.run_query(query)
+    count = r ? r["data"][0][0] : "?"
+    puts("#{count} vernacular records")
+  end
+
   def publish
     publish_vernaculars
   end
@@ -261,8 +277,8 @@ class Resource
              WITH row, toInteger(row.page_id) AS page_id
              MATCH (r:Resource {resource_id: #{get_publishing_id}})
              MERGE (:Page {page_id: page_id})-[:vernacular]->
-                   (:Vernacular {namestring: row.namestring,
-                                 language: row.language,
+                   (:Vernacular {string: row.vernacular_string,
+                                 language_code: row.language_code,
                                  is_preferred_name: row.is_preferred_name})-[:supplier]->
                    (r)
              RETURN COUNT(row)
@@ -282,7 +298,7 @@ class Resource
 
     tt = @dwca.get_table(Claes.taxon)      # a Table
     if tt.is_column(Property.page_id)
-      puts "Page id assignments are in the #{tt.location} table"
+      puts "\nThere are page id assignments in the #{tt.location} table"
       # get mapping from taxon_id table
       taxon_id_column = tt.column_for_property(Property.taxon_id)
       page_id_column = tt.column_for_property(Property.page_id)

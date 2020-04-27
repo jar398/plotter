@@ -6,12 +6,11 @@ namespace :resource do
     Resource.new(
       system: System.system(ENV['CONF']),
       publishing_id: ENV['ID'],
-      repository_id: ENV['REPOSITORY_ID'],
-      opendata_url: ENV['URL'])
+      repository_id: ENV['REPOSITORY_ID'])
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
-  task :vernaculars do 
+  task :harvest do 
     r = get_resource
     r.harvest_vernaculars
     get_resource.stage
@@ -28,4 +27,9 @@ namespace :resource do
   task :publish do
     get_resource.publish
   end
+
+  task :count do
+    get_resource.count
+  end
+
 end

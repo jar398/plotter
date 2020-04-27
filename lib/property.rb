@@ -19,7 +19,6 @@ class Property < Denotable
 
                "starts_at" => "https://eol.org/schema/terms/starts_at",
                "stops_at" => "https://eol.org/schema/terms/stops_at"}
-    puts "initializing properties"
     MAPPING.each do |name, uri|
       Property.get(uri, name)
     end

@@ -187,19 +187,16 @@ class Dwca
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
     tables = doc.css('archive table').collect do |table_element|
       row_type = table_element['rowType']    # a URI
-      claes = Claes.get(row_type)
-      STDERR.puts "# Table #{claes.name}"
       location = table_element.css("location").first.text
       positions = parse_fields(table_element)
       sep = table_element['fieldsTerminatedBy']
-      puts "## Separator is [#{sep}]"
       ig = table_element['ignoreHeaderLines']
       Table.new(property_positions: positions,
                 location: location,
                 path: File.join(@unpacked, location),
                 separator: sep,
                 ignore_lines: (ig ? ig.to_i : 0),
-                claes: claes)
+                claes: Claes.get(row_type))
     end
     claes_to_table = {}
     # TBD: Complain if a claes has multiple tables???

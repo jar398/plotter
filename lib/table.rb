@@ -51,23 +51,16 @@ class Table
       raise "bogus property" unless prop.name
       raise "bogus position" unless pos >= 0
     end
-    puts @property_positions.collect{|prop,pos|"#{prop.name}->#{pos}"}
     @claes = claes
     @location = location    # file basename, or nil
     if not separator
-      puts "# Table.new: inferring from location"
       # "you should use double quote when you want to escape a character"
       separator = (location.end_with?('.csv') ? ',' : "\t")
-      puts "# Table.new 1: Separator is [#{separator}], length #{separator.length}"
     end
     if separator.length > 1
-      puts "# Table.new: replacing with single tab char"
       separator = "\t"
-      puts "# Table.new 2: Separator is [#{separator}], length #{separator.length}"
     else
-      puts "# Table.new 3: No change, length #{separator.length}"
     end
-    puts "# Table.new: Separator is [#{separator}], length #{separator.length}"
     @separator = separator
     @ignore_lines = ignore_lines
 
@@ -135,16 +128,26 @@ class Table
   end
 
   def open_csv_in(part_path = @path)
+    puts "Reading table at #{@part_path}"
     # But, see Resource.get_page_id_map and Paginator.
-    puts "# Input column separator is supposed to be [#{@separator}], length #{@separator.length}"
     quote_char = (@separator == "\t" ? "\x00" : '"')
-    csv = CSV.open(part_path, "r:UTF-8", col_sep: @separator, quote_char: quote_char)
-    puts "# Input column separator is actually [#{csv.col_sep}], length #{csv.col_sep.length}"
 
-    (0...@ignore_lines).each do |counter|
-      row = csv.shift
-      @header = row unless @header
-      puts "discarding header row #{row}"
+    chunks_dir = path_path + ".chunks"
+    if File.exist?(chunks_dir)
+      chunk_paths = File.glob(File.join(chunks_dir, "*.csv"))
+      puts "Found #{chunk_paths.length} chunks"
+      STDERR.puts "Chunked input not yet implemented: #{chunks_dir}"
+    end
+    if File.exist?(part_path)
+      csv = CSV.open(part_path, "r:UTF-8", col_sep: @separator, quote_char: quote_char)
+
+      (0...@ignore_lines).each do |counter|
+        row = csv.shift
+        @header = row unless @header
+        puts "discarding header row #{row}"
+      end
+    else
+      raise "Found neither #{path_part} nor #{chunks_dir}"
     end
     csv
   end
@@ -169,7 +172,7 @@ class Table
   end
 
   def open_csv_out(part_path = @path)
-    puts "Writing #{part_path}"
+    puts "Writing table to #{part_path}"
     csv = CSV.open(part_path, "w:UTF-8")
     header = get_header
     (0...@ignore_lines).each{|n| csv << header}

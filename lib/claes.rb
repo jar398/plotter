@@ -8,7 +8,6 @@ class Claes < Denotable
 
     MAPPING = {"Taxon" => "http://rs.tdwg.org/dwc/terms/Taxon",
                "VernacularName" => "http://rs.gbif.org/terms/1.0/VernacularName"}
-    puts "initializing classes"
     MAPPING.each do |name, uri|
       Claes.get(uri, name)
     end
