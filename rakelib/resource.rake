@@ -13,10 +13,10 @@ namespace :resource do
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
-  ENV['OPENDATA_URL'] || raise("Please provide env var OPENDATA_URL")
   task :harvest do 
+    ENV['OPENDATA_URL'] || STDERR.puts("No OPENDATA_URL given.")
     r = get_resource
-    r.harvest_vernaculars
+    r.harvest
     get_resource.stage
   end
 
@@ -30,6 +30,10 @@ namespace :resource do
 
   task :publish do
     get_resource.publish
+  end
+
+  task :fetch do
+    get_resource.fetch
   end
 
   task :count do

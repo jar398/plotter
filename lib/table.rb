@@ -48,7 +48,6 @@ class Table
     property_positions = Table.depositionalize(properties) unless property_positions
     @property_positions = property_positions     # URI to column index
     @property_positions.collect do |prop, pos|
-      raise "bogus property" unless prop.name
       raise "bogus position" unless pos >= 0
     end
     @claes = claes

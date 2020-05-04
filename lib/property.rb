@@ -13,10 +13,26 @@ class Property < Denotable
                "page_id" => "http://eol.org/schema/EOLid",
                "scientific_name" => "http://rs.tdwg.org/dwc/terms/scientificName",
 
+               # These are DH columns
+               "source" => "http://purl.org/dc/terms/source",
+               "further_information" => "http://rs.tdwg.org/ac/terms/furtherInformationURL",
+               "accepted" => "http://rs.tdwg.org/dwc/terms/acceptedNameUsageID",
+               "parent" => "http://rs.tdwg.org/dwc/terms/parentNameUsageID",
+               "higher_classification" => "http://rs.tdwg.org/dwc/terms/higherClassification",
+               "rank" => "http://rs.tdwg.org/dwc/terms/taxonRank",
+               "taxonomic_status" => "http://rs.tdwg.org/dwc/terms/taxonomicStatus",
+               "taxon_remarks" => "http://rs.tdwg.org/dwc/terms/taxonRemarks",
+               "dataset_id" => "http://rs.tdwg.org/dwc/terms/datasetID",
+               "canonical" => "http://rs.gbif.org/terms/1.0/canonicalName",
+               "annotations" => "http://eol.org/schema/EOLidAnnotations",
+               "landmark" => "http://eol.org/schema/Landmark",
+
+               # Vernaculars
                "vernacular_string" => "http://rs.tdwg.org/dwc/terms/vernacularName",
                "language_code" => "http://purl.org/dc/terms/language",
                "is_preferred_name" => "http://rs.gbif.org/terms/1.0/isPreferredName",
 
+               # Trait metadata
                "starts_at" => "https://eol.org/schema/terms/starts_at",
                "stops_at" => "https://eol.org/schema/terms/stops_at"}
     MAPPING.each do |name, uri|

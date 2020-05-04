@@ -10,7 +10,6 @@ require 'net/http'
 require 'fileutils'
 require 'json'
 
-require 'term'
 require 'table'
 require 'dwca'
 require 'graph'
@@ -25,23 +24,37 @@ class Resource
                  id: nil,
                  publishing_id: nil,
                  repository_id: nil,
+
                  opendata_url: nil, # for opendata landing page
                  dwca: nil,
                  dwca_url: nil,     # for the dwca itself
                  dwca_path: nil)
     @system = system
-    opendata_url = opendata_url || puts("Missing opendata_url")
-    puts "Landing page is at #{opendata_url}"
-    dwca_url ||= (opendata_url ? get_dwca_url(opendata_url) : nil)
-    puts "DWCA is at #{dwca_url}"
     @workspace = workspace
+
     id = id.to_i
     publishing_id ||= id
     @publishing_id = publishing_id ? publishing_id.to_i : nil
     @repository_id = repository_id ? repository_id.to_i : nil
-    @dwca = dwca || Dwca.new(get_workspace,
-                             dwca_url: dwca_url,
-                             dwca_path: dwca_path)
+
+    if opendata_url
+      puts "Landing page is at #{opendata_url}" 
+    else
+      puts "No landing page given" 
+    end
+    dwca_url ||= (opendata_url ? get_dwca_url(opendata_url) : nil)
+    if dwca
+      @dwca = dwca
+    else
+      if dwca_url
+        puts "DWCA is at #{dwca_url}"
+      else
+        puts "DWCA is local at #{dwca_path}"
+      end
+      @dwca = Dwca.new(File.join(get_workspace, "dwca"),
+                       dwca_url: dwca_url,
+                       dwca_path: dwca_path)
+    end
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb.
@@ -70,8 +83,9 @@ class Resource
 
   def get_repository_id
     return @repository_id if @repository_id
-    record = get_record(get_publishing_id)
+    record = @system.get_resources[get_publishing_id]
     if record
+      puts "Resource name = #{record['name']}"
       @repository_id = record["repository_id"].to_i
       @repository_id
     else
@@ -80,17 +94,6 @@ class Resource
   end
 
   def system; @system; end
-
-  def get_record(publishing_id)
-    # Get the resource record, if any, from the publisher's resource list
-    records = JSON.parse(Net::HTTP.get(URI.parse("#{@publishing_url}/resources.json")))
-    records_index = {}
-    records["resources"].each do |record|
-      id = record["id"].to_i
-      records_index[id] = record
-    end
-    records_index[publishing_id]
-  end
 
   def map_to_page_id(taxon_id)
     @page_id_map[taxon_id]
@@ -113,20 +116,26 @@ class Resource
     File.join(dir_in_workspace("stage"), name)
   end
 
+  def fetch
+    @dwca.get_unpacked          # Extract meta.xml and so on
+  end
+
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
 
-  def harvest_vernaculars
-
-    # Column order for output
-    props = [Property.page_id,
-             Property.vernacular_string,
-             Property.language_code,
-             Property.is_preferred_name]
-
-    @dwca.get_unpacked          # Extract meta.xml and so on
-
+  def harvest
     vt = @dwca.get_table(Claes.vernacular_name)
+    if vt
+      harvest_table(vt,
+                    [Property.page_id,
+                     Property.vernacular_string,
+                     Property.language_code,
+                     Property.is_preferred_name])
+    end
+  end
+
+  def harvest_table(vt, props)
+    fetch                       # Get the DwCA and unpack it
     puts "# Found these columns:\n  #{vt.get_properties.collect{|p|(p ? p.name : '?')}}"
 
     # For resource 40, input columns are vernacularName, language, taxonID

@@ -9,12 +9,18 @@ class Registry
     def register(obj)
       @index_by_uri = {} unless @index_by_uri
       @index_by_name = {} unless @index_by_name
-      uri = obj.uri
-      raise("No URI") unless uri
-      raise("Bad URI: #{uri}") unless uri.include?("://")
-      # What if there's already something indexed under uri or name?
-      @index_by_uri[uri] = obj
-      @index_by_name[obj.name] = obj if obj.name
+      raise("No URI") unless obj.uri
+      raise("Bad URI: #{uri}") unless obj.uri.include?("://")
+
+      if @index_by_uri[obj.uri] == nil
+        @index_by_uri[obj.uri] = obj
+        if obj.name
+          @index_by_name[obj.name] = obj  
+        else
+          puts("URI has no cypher name: #{obj.uri}")
+        end
+      end
+
       obj
     end
 

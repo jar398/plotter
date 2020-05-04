@@ -2,6 +2,8 @@
 # publishing server, and a staging server.
 
 require 'graph'
+require 'open-uri'
+require 'net/http'
 
 class System
   class << self
@@ -12,6 +14,24 @@ class System
       end
       @systems[tag]
     end
+
+    def get_from_internet(url, path)
+      workspace = File.basename(path)
+      # Download the archive file from Internet if it's not
+      `rm -rf #{workspace}`
+      STDERR.puts "Copying #{url} to #{path}"
+      # This is really clumsy... ought to stream it
+      open(url, 'rb') do |input|
+        File.open(path, 'wb') do |file|
+          file.write(input.read)
+        end
+      end
+      raise('Did not download') unless File.exist?(path) && File.size(path).positive?
+      File.write(File.join(ws, "url"), url)
+      STDERR.puts "... #{File.size(path)} octets"
+      path
+    end
+
   end
 
   def initialize(tag)
@@ -55,7 +75,7 @@ class System
   end
 
   def get_repository_url
-    @repository_url = get_config["repository"]["url"]
+    @repository_url = ENV["REPOSITORY_URL"] || get_config["repository"]["url"]
     @repository_url += "/" unless @repository_url.end_with?("/")
     @repository_url
   end
@@ -76,6 +96,20 @@ class System
       @stage_url = get_config["stage"]["url"]
     end
     @stage_url
+  end
+
+  def get_resources
+    return @resources if @resources
+
+    # Get the resource record, if any, from the publishing site's resource list
+    publishing_url = get_config["api"]["url"]
+    records = JSON.parse(Net::HTTP.get(URI.parse("#{publishing_url}/resources.json")))
+    records_index = {}
+    records["resources"].each do |record|
+      id = record["id"].to_i
+      records_index[id] = record
+    end
+    @resources = records_index
   end
 
 end

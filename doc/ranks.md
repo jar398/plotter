@@ -6,7 +6,14 @@ There ought to be a batch job that does the whole operation.
   the opendata API, but is it worth it?
   Click on 'Explore' then 'download' to get the .tar.gz file.
 
+Better, needs documenting:
+
+    rake resource:fetch CONF=test ID=589 \
+      OPENDATA_URL="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/00adb47b-57ed-4f6b-8f66-83bfdb5120e8"
+
 **Extract taxon.tab:** (we only need that one file out of the .tar.gz)
+
+  (This step is obviated by the `rake` command)
 
     tar xzf ....tar.gz taxon.tab
 

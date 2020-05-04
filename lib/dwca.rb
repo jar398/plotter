@@ -1,19 +1,19 @@
 # Darwin Core archive management / manipulation
 
-require 'net/http'
 require 'fileutils'
 require 'nokogiri'
 require 'open-uri'
 
 require 'table'
 require 'property'
+require 'system'
 
 class Dwca
 
-  def initialize(workspace, dwca_path: nil, dwca_url: nil)
-    @dwca_workspace = File.join(workspace, "dwca")
+  def initialize(dwca_workspace, dwca_path: nil, dwca_url: nil)
+    @dwca_workspace = dwca_workspace
     @unpacked = File.join(@dwca_workspace, "unpacked")
-    @dwca_path = dwca_path         # where the dwca is stored in local file system
+    @dwca_path = dwca_path    # where the dwca is stored in local file system
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
     @tables = nil
   end
@@ -28,53 +28,29 @@ class Dwca
 
   def get_unpacked
     return @unpacked if File.exists?(File.join(@unpacked, "meta.xml"))
-    unpack_archive(get_archive)
-  end
 
-  # Get the DWCA from the Internet, if haven't done so already
-  # Adapted from harvester app/models/resource/from_open_data.rb
-
-  def get_dwca_path
-    # If we already know where it is (or should be) locally, use that location
-    return @dwca_path if @dwca_path
-    # We don't know the path.  Need to figure out the extension from
-    # the URL.
-    ext = @dwca_url.match?(/zip$/) ? 'zip' : 'tgz'
+    ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
     @dwca_path = File.join(@dwca_workspace, "dwca.#{ext}")
-    @dwca_path
-  end
 
-  def get_archive
-    # Figure out where the dwca file is supposed to be locally
-    dwca_path = get_dwca_path
     # Use existing archive if it's there
-    if url_valid? && File.exist?(dwca_path) && File.size(dwca_path).positive?
-      STDERR.puts "Using previously downloaded archive.  rm -r #{@dwca_workspace} to force reload."
+    workspace = File.basename(path)
+    if url_valid?(url) && File.exist?(path) && File.size(path).positive?
+      STDERR.puts "Using previously downloaded archive.  rm -r #{workspace} to force reload."
     else
-      # Download the archive file from Internet if it's not
-      `rm -rf #{@dwca_workspace}`
-      ws = get_workspace    # create the directory
-      STDERR.puts "Copying #{@dwca_url} to #{dwca_path}"
-      File.open(dwca_path, 'wb') do |file|
-        open(@dwca_url, 'rb') do |input|
-          file.write(input.read)
-        end
-      end
-      raise('Did not download') unless File.exist?(dwca_path) && File.size(dwca_path).positive?
-      File.write(File.join(ws, "dwca_url"), @dwca_url)
+      System.get_from_internet(@dwca_url, @dwca_path)
     end
-    STDERR.puts "... #{File.size(dwca_path)} octets"
-    @dwca_path = dwca_path
-    dwca_path
+
+    unpack_archive(@dwca_path)
   end
 
-  def url_valid?
+  def url_valid?(dwca_url)
+    return false unless dwca_url
     # Reuse previous file only if URL matches
     file_holding_url = File.join(@dwca_workspace, "dwca_url")
     valid = false
     if File.exists?(file_holding_url)
       old_url = File.read(file_holding_url)
-      if old_url == @dwca_url
+      if old_url == dwca_url
         valid = true 
       else
         STDERR.puts "Different URL this time!"
@@ -145,7 +121,9 @@ class Dwca
   def get_tables
     return @tables if @tables
     get_unpacked
-    @tables = from_xml(File.join(@unpacked, "meta.xml"))
+    path = File.join(@unpacked, "meta.xml")
+    puts "Processing #{path}"
+    @tables = from_xml(path)
     @tables
   end
 
