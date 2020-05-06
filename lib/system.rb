@@ -36,80 +36,109 @@ class System
 
   def initialize(tag)
     raise("No configuration tag specified (try CONF=test)") unless tag
-    @tag = tag
+    @assembly_name = tag
   end
 
-  def get_config
-    return @config if @config
-    @config = YAML.load(File.read("config/config.yml"))[@tag]
-    raise("No configuration found with tag #{@tag}") unless @config
-    @config
+  def get_uber_config
+    return @uber_config if @uber_config
+    @uber_config = YAML.load(File.read("config/config.yml")) ||
+                   raise("No configuration found")
+    @uber_config
+  end
+
+  def get_assembly_config
+    get_uber_config["assemblies"][@assembly_name] ||
+      raise("No configuration found: #{@assembly_name}")
+  end
+
+  def get_database_config(db_name)
+    get_uber_config["databases"][db_name] ||
+      raise("No configuration for database #{db_name}")
+  end
+
+  def get_uber_workspace        # For all databases
+    return get_uber_config["workspace"]
   end
 
   def get_graph
     return @graph if @graph
-    method = get_config["cypher"]["method"]
-    if method == "eol_api"   # Use EOL web site v3 API
-
-      eol_api_url = get_config["api"]["url"]
-      raise("No API (publishing) site specified") unless eol_api_url
-
-      token_path = get_config["api"]["update_token_file"]
-      raise("No token file specified") unless token_path
-      token = File.read(token_path).strip
-
-      @graph = Graph.via_http(eol_api_url, token)
-    elsif method == "neography"     # Talk to neo4j directly
-      @graph = Graph.via_neography(get_config["neography"]["url"])
+    db_name = get_assembly_config["graphdb"] ||
+              raise("No graphdb specified in assembly {@assembly}")
+    graphdb_config = get_database_config[db_name]
+    url = graphdb_config["url"]
+    if url
+      @graph = Graph.via_neography(url)
     else
-      raise "unrecognized cypher method #{method}"
+      pub_db_name = graphdb_config["via"] ||
+                       raise("No API (publishing) site specified")
+      pub_server_config = get_database_config[pub_db_name]
+      token_path = pub_server_config["update_token_file"] ||
+                   pub_server_config["token_file"]
+      token = File.read(token_path).strip
+      @graph = Graph.via_http(pub_server_config["url"], token)
     end
     @graph
   end
 
-  def get_workspace_root        # For all resources
-    return @workspace_root if @workspace_root
-    @workspace_root = get_config["workspace"]["path"]
-    puts("Workspace root is #{@workspace_root}")
-    @workspace_root
+  # Stage root is shared by all servers
+
+  def get_stage_scp_location(resource_id)
+    prefix = get_uber_config["staging"]["scp_location"]
+    graphdb_name = get_assembly_config["graphdb"]
+    # Not easy to create directories on remote machine, so just use
+    # hyphenated file names
+    loc = "#{prefix}#{graphdb_name}-#{resource_id.to_s}-stage"
+    puts "Staging location for scp is #{loc}"
+    loc
   end
 
-  def get_repository_url
-    @repository_url = ENV["REPOSITORY_URL"] || get_config["repository"]["url"]
-    @repository_url += "/" unless @repository_url.end_with?("/")
-    @repository_url
+  def get_stage_url(resource_id)
+    prefix = get_uber_config["staging"]["url"]
+    graphdb_name = get_assembly_config["graphdb"]
+    loc = "#{prefix}#{graphdb_name}-#{resource_id.to_s}-stage"
+    puts "Staging URL is #{loc}"
+    loc
   end
 
-  def get_stage_scp
-    if @stage_scp
-      @stage_scp += "/" unless @stage_scp.end_with?("/")
-    else
-      @stage_scp = get_config["stage"]["scp"]
-    end
-    @stage_scp
-  end
-
-  def get_stage_url
-    if @stage_url
-      @stage_url += "/" unless @stage_url.end_with?("/")
-    else
-      @stage_url = get_config["stage"]["url"]
-    end
-    @stage_url
-  end
+  # ---------- Link publishing info to repository (harvesting) info
 
   def get_resources
     return @resources if @resources
 
     # Get the resource record, if any, from the publishing site's resource list
-    publishing_url = get_config["api"]["url"]
-    records = JSON.parse(Net::HTTP.get(URI.parse("#{publishing_url}/resources.json")))
+    publishing_name = get_assembly_config["publishing"]
+    publishing_url = get_database_config[publishing_name]["url"]
+    @resources = resource_index(publishing_url, "id")
+    @resources
+  end
+
+  def resource_index(url, key)
+    records = JSON.parse(Net::HTTP.get(URI.parse("#{url}/resources.json")))
     records_index = {}
     records["resources"].each do |record|
-      id = record["id"].to_i
-      records_index[id] = record
+      value = record["key"].to_i
+      if records_index.key?(value)
+        STDERR.puts "** Warning: More than one record has value #{value} for {key}"
+      end
+      records_index[value] = record
     end
-    @resources = records_index
+    records
+  end
+
+  # ---------- Repository methods
+
+  def get_repository_config
+    return get_uber_config[get_assembly_config["repository"]]
+  end
+
+  def get_url_for_repository
+    repository_url = get_repository_config["server"]["url"]
+    repository_url += "/" unless repository_url.end_with?("/")
+    repository_url
+  end
+
+  def get_workspace_for_repository
+    get_repository_config["workspace"]["path"]
   end
 
 end

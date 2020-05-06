@@ -12,8 +12,7 @@ class Dwca
 
   def initialize(dwca_workspace, dwca_path: nil, dwca_url: nil)
     @dwca_workspace = dwca_workspace
-    @unpacked = File.join(@dwca_workspace, "unpacked")
-    @dwca_path = dwca_path    # where the dwca is stored in local file system
+    @dwca_path = dwca_path
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
     @tables = nil
   end
@@ -26,21 +25,54 @@ class Dwca
     @dwca_workspace
   end
 
-  def get_unpacked
-    return @unpacked if File.exists?(File.join(@unpacked, "meta.xml"))
+  def get_unpacked_loc
+    File.join(@dwca_workspace, "unpacked")
+  end
 
-    ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
-    @dwca_path = File.join(@dwca_workspace, "dwca.#{ext}")
+  # Where the DwCA file is stored in local file system
+  def get_dwca_path
+    return @dwca_path if @dwca_path
+    if @dwca_url
+      ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
+      File.join(@dwca_workspace, "dwca.#{ext}")
+    else
+      zip = File.join(@dwca_workspace, "dwca.zip")
+      return zip if File.exists?(zip)
+      tgz = File.join(@dwca_workspace, "dwca.tgz")
+      return zip if File.exists?(tgz)
+      raise "No DWCA_PATH or DWCA_URL was specified / present"
+    end
+  end
+
+  def get_dwca_url
+    @dwca_url || raise("No DWCA_URL was specified")
+  end
+
+  # Ensure that the unpack/ directory is populated from the archive file.
+
+  def ensure_unpacked
+    dir = get_unpacked_loc
+    return dir if File.exists?(File.join(dir, "meta.xml"))
+
+    # Files aren't there.  Ensure that the archive is present locally,
+    # then unpack it.
+
+    unpack_archive(ensure_archive_local_copy(dir))
+    # We can delete the zip file afterwards if we want... won't be needed
+  end
+
+  def ensure_archive_local_copy(dir)
+    path = get_dwca_path
+    url = get_dwca_url
 
     # Use existing archive if it's there
-    workspace = File.basename(path)
     if url_valid?(url) && File.exist?(path) && File.size(path).positive?
-      STDERR.puts "Using previously downloaded archive.  rm -r #{workspace} to force reload."
+      raise "Using previously downloaded archive.  rm -r #{get_workspace} to force reload."
     else
-      System.get_from_internet(@dwca_url, @dwca_path)
+      System.get_from_internet(url, path)
     end
 
-    unpack_archive(@dwca_path)
+    @dwca_path
   end
 
   def url_valid?(dwca_url)
@@ -60,19 +92,19 @@ class Dwca
 
   # Adapted from harvester app/models/drop_dir.rb
   # File is either something.tgz or something.zip
-  def unpack_archive(archive)
-    dest = @unpacked
+  def unpack_archive(archive_file)
+    dest = ensure_unpacked
     dir = File.dirname(dest)
     FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
                       
     temp = File.join(get_workspace, "tmp")
     FileUtils.mkdir_p(temp) unless Dir.exist?(temp)
 
-    ext = File.extname(archive)
+    ext = File.extname(archive_file)
     if ext.casecmp('.tgz').zero?
-      untgz(archive, temp)
+      untgz(archive_file, temp)
     elsif ext.casecmp('.zip').zero?
-      unzip(archive, temp)
+      unzip(archive_file, temp)
     else
       raise("Unknown file extension: #{basename}#{ext}")
     end
@@ -90,15 +122,15 @@ class Dwca
     dest
   end
 
-  def untgz(archive, dir)
-    res = `cd #{dir} && tar xvzf #{archive}`
+  def untgz(archive_file, dir)
+    res = `cd #{dir} && tar xvzf #{archive_file}`
   end
 
-  def unzip(archive, dir)
+  def unzip(archive_file, dir)
     # NOTE: -u for "update and create if necessary"
     # NOTE: -q for "quiet"
     # NOTE: -o for "overwrite files WITHOUT prompting"
-    res = `cd #{dir} && unzip -quo #{archive}`
+    res = `cd #{dir} && unzip -quo #{archive_file}`
   end
 
   # Similar to `flatten` in harvester app/models/drop_dir.rb
@@ -120,8 +152,8 @@ class Dwca
 
   def get_tables
     return @tables if @tables
-    get_unpacked
-    path = File.join(@unpacked, "meta.xml")
+    ensure_unpacked
+    path = File.join(get_unpacked_loc, "meta.xml")
     puts "Processing #{path}"
     @tables = from_xml(path)
     @tables
@@ -148,7 +180,7 @@ class Dwca
       ig = table_element['ignoreHeaderLines']
       Table.new(property_positions: positions,
                 location: location,
-                path: File.join(@unpacked, location),
+                path: File.join(get_unpacked_loc, location),
                 separator: sep,
                 ignore_lines: (ig ? ig.to_i : 0),
                 claes: Claes.get(row_type))

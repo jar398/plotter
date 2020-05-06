@@ -21,9 +21,10 @@ class Resource
   def initialize(system: nil,
                  # Specific to this resource
                  workspace: nil,
-                 id: nil,
+                 id: nil,     # resource id in graphdb... usu same as publishing
                  publishing_id: nil,
                  repository_id: nil,
+                 abbr: nil,  # user either id or abbr to specify (unused as yet)
 
                  opendata_url: nil, # for opendata landing page
                  dwca: nil,
@@ -32,29 +33,38 @@ class Resource
     @system = system
     @workspace = workspace
 
-    id = id.to_i
+    # One of these two must be specified
+    id ||= publishing_id
     publishing_id ||= id
-    @publishing_id = publishing_id ? publishing_id.to_i : nil
-    @repository_id = repository_id ? repository_id.to_i : nil
+    id = id.to_i
+    publishing_id = publishing_id.to_i
 
-    if opendata_url
-      puts "Landing page is at #{opendata_url}" 
-    else
-      puts "No landing page given" 
+    @publishing_id = publishing_id
+    @id_in_repository = repository_id ? repository_id.to_i : nil
+    @abbr = abbr
+
+    # Make it sticky so we don't have to keep repeating it
+    File.write(File.join(get_workspace, "opendata_url"), opendata_url) \
+      if opendata_url
+    @opendata_url = opendata_url
+
+    @dwca = dwca
+    @dwca_url = dwca_url
+    @dwca_path = dwca_path
+  end
+
+  def get_dwca
+    return @dwca if @dwca
+    if @opendata_url
+      puts "Landing page is at #{@opendata_url}" 
     end
-    dwca_url ||= (opendata_url ? get_dwca_url(opendata_url) : nil)
-    if dwca
-      @dwca = dwca
-    else
-      if dwca_url
-        puts "DWCA is at #{dwca_url}"
-      else
-        puts "DWCA is local at #{dwca_path}"
-      end
-      @dwca = Dwca.new(File.join(get_workspace, "dwca"),
-                       dwca_url: dwca_url,
-                       dwca_path: dwca_path)
+    unless @dwca_path
+      @dwca_url ||= (@opendata_url ? get_dwca_url(@opendata_url) : nil)
     end
+    @dwca = Dwca.new(get_workspace_for_repository, 
+                     dwca_url: dwca_url,
+                     dwca_path: dwca_path)
+    @dwca
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb.
@@ -81,18 +91,6 @@ class Resource
     @workspace
   end
 
-  def get_repository_id
-    return @repository_id if @repository_id
-    record = @system.get_resources[get_publishing_id]
-    if record
-      puts "Resource name = #{record['name']}"
-      @repository_id = record["repository_id"].to_i
-      @repository_id
-    else
-      raise("Publishing resource #{get_publishing_id} has no repository id")
-    end
-  end
-
   def system; @system; end
 
   def map_to_page_id(taxon_id)
@@ -117,14 +115,14 @@ class Resource
   end
 
   def fetch
-    @dwca.get_unpacked          # Extract meta.xml and so on
+    get_dwca.ensure_unpacked          # Extract meta.xml and so on
   end
 
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
 
   def harvest
-    vt = @dwca.get_table(Claes.vernacular_name)
+    vt = get_dwca.get_table(Claes.vernacular_name)
     if vt
       harvest_table(vt,
                     [Property.page_id,
@@ -183,7 +181,11 @@ class Resource
             value
           else
             puts "** No #{prop.name} at row #{counter}" if counter < 10
-            -123
+            if prop == Property.is_preferred_name
+              value = 0
+            else
+              -123
+            end
           end
         elsif prop == Property.page_id
           # No column for page id.  Map taxon id to it.
@@ -220,7 +222,7 @@ class Resource
   def stage(dir_name = "stage")
     local_staging_path = File.join(@workspace, dir_name)
     prepare_manifests(local_staging_path)
-    stage_specifier = "#{@system.get_stage_scp}#{get_publishing_id.to_s}-#{dir_name}"
+    stage_specifier = "#{@system.get_stage_scp_location(get_publishing_id.to_s)}-#{dir_name}"
     STDERR.puts("Copying #{local_staging_path} to #{stage_specifier}")
     stdout_string, status = Open3.capture2("rsync -va #{local_staging_path}/ #{stage_specifier}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
@@ -313,6 +315,31 @@ class Resource
     STDERR.puts("Merged #{count} relationships from #{url}")
   end
 
+  # ---------- Repository methods
+
+  def get_workspace_for_repository
+    dir = File.join(@system.get_workspace_for_repository, get_id_in_repository.to_s)
+    if not File.exists?(dir)
+      puts "Creating directory #{dir}"
+      FileUtils.mkdir_p(dir) 
+    end
+    dir
+  end
+
+  def get_id_in_repository
+    return @id_in_repository if @id_in_repository
+    record = @system.get_resources[get_publishing_id]
+    if record
+      puts "Resource name = #{record['name']}"
+      @id_in_repository = record["repository_id"].to_i
+      File.write(File.join(get_workspace_for_repository, 'id_in_repository'),
+                 "#{@id_in_repository}")
+      @id_in_repository
+    else
+      raise("Publishing resource #{get_publishing_id} has no repository id")
+    end
+  end
+
   # Cache the resource's resource_pk to page id map in memory
   # [might want to cache it in the file system as well]
 
@@ -321,7 +348,7 @@ class Resource
 
     page_id_map = {}
 
-    tt = @dwca.get_table(Claes.taxon)      # a Table
+    tt = get_dwca.get_table(Claes.taxon)      # a Table
     if tt.is_column(Property.page_id)
       puts "\nThere are page id assignments in the #{tt.location} table"
       # get mapping from taxon_id table
@@ -331,8 +358,9 @@ class Resource
         page_id_map[row[taxon_id_column]] = row[page_id_column].to_i
       end
     else
-      repository_url = @system.get_repository_url
-      STDERR.puts "Getting page ids for #{@repository_id} from #{repository_url}"
+      repository_url = @system.get_url_for_repository
+      id_in_repository = get_id_in_repository
+      STDERR.puts "Getting page ids for #{id_in_repository} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
       # using the web service; put it in a hash for easy lookup.
@@ -340,7 +368,7 @@ class Resource
 
       # e.g. https://beta-repo.eol.org/service/page_id_map/600
 
-      service_url = "#{repository_url}service/page_id_map/#{@repository_id}"
+      service_url = "#{repository_url}service/page_id_map/#{id_in_repository}"
       STDERR.puts "Request URL = #{service_url}"
 
       service_uri = URI(service_url)
