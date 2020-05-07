@@ -1,9 +1,13 @@
-# Workspace structure:
-#   ID/ID.tgz or ID/ID.zip  - downloaded archive file
-#   ID/unpack/              - transient area used for unpacking
-#   ID/archive/             - directory holding archive files
-#   ID/archive/meta.xml     - for example
-#   ID/normalized/          - result of transduction
+# Local locations for processing pipeline:
+
+# Ids in workspace directory names are from production publishing...
+
+
+#  dwca/ID/ID.tgz or ID.zip   - dwca file, mirrors opendata
+#  dwca/ID/unpack/            - extracted from dwca
+#  stage/ID/          - files prepared for Cypher LOAD CSV
+
+# For staging, the file names are the same, but with ID-x instead of ID/x.
 
 require 'csv'
 require 'net/http'
@@ -18,52 +22,36 @@ require 'property'
 
 class Resource
 
-  def initialize(system: nil,
-                 # Specific to this resource
-                 workspace: nil,
-                 id: nil,     # resource id in graphdb... usu same as publishing
-                 publishing_id: nil,
-                 repository_id: nil,
-                 abbr: nil,  # user either id or abbr to specify (unused as yet)
-
-                 opendata_url: nil, # for opendata landing page
-                 dwca: nil,
-                 dwca_url: nil,     # for the dwca itself
-                 dwca_path: nil)
+  def initialize(system, config)
     @system = system
-    @workspace = workspace
-
-    # One of these two must be specified
-    id ||= publishing_id
-    publishing_id ||= id
-    id = id.to_i
-    publishing_id = publishing_id.to_i
-
-    @publishing_id = publishing_id
-    @id_in_repository = repository_id ? repository_id.to_i : nil
-    @abbr = abbr
-
-    # Make it sticky so we don't have to keep repeating it
-    File.write(File.join(get_workspace, "opendata_url"), opendata_url) \
-      if opendata_url
-    @opendata_url = opendata_url
-
-    @dwca = dwca
-    @dwca_url = dwca_url
-    @dwca_path = dwca_path
+    raise "gotta have a name at least" unless config["name"]
+    @config = config
   end
+
+  def name; @config["name"]; end
+
+  def get_workspace             # For this resource, with its multiple presences
+    File.join(@system.get_workspace,
+              'resources',
+              @system.id_for_resource(self.name).to_s)
+  end
+
+  def merge(record)
+    # system config overrides resources.json
+    @config.merge!(record) {|key, oldval, newval| oldval}
+  end
+
+  # ---------- Processing stage 1: copy DWCA from opendata to workspace
+
+  # Need one of dwca_path (local), dwca_url (remote opendata)
 
   def get_dwca
     return @dwca if @dwca
-    if @opendata_url
-      puts "Landing page is at #{@opendata_url}" 
-    end
-    unless @dwca_path
-      @dwca_url ||= (@opendata_url ? get_dwca_url(@opendata_url) : nil)
-    end
-    @dwca = Dwca.new(get_workspace_for_repository, 
-                     dwca_url: dwca_url,
-                     dwca_path: dwca_path)
+
+    opendata_url = @config["landing_page"]
+    raise "opendata URL is unknown" unless opendata_url
+    @dwca = Dwca.new(File.join(get_workspace, "dwca"),
+                     dwca_url: get_dwca_url(@opendata_url))
     @dwca
   end
 
@@ -80,43 +68,30 @@ class Resource
     html.css('p.muted a').first['href']
   end
 
-  def get_publishing_id
-    return @publishing_id if @publishing_id
-    raise("A publishing_id is needed but none was given")
-  end
-
-  def get_workspace             # For this resource
-    return @workspace if @workspace
-    @workspace = File.join(@system.get_workspace_root, get_publishing_id.to_s)
-    @workspace
-  end
-
-  def system; @system; end
+  # ---------- Processing stage 2: map taxon ids occurring in the Dwca
+  # (it might be a good idea to cache this locally)
 
   def map_to_page_id(taxon_id)
-    @page_id_map[taxon_id]
+    get_page_id_map[taxon_id]
   end
 
-  def dir_in_workspace(dir_name)
-    dir = File.join(@workspace, dir_name)
+  # ---------- Processing stage 3: workspace to workspace conversion...
+  #   convert local unpacked copy of dwca to files for graphdb
+
+  def local_staging_path(name)
+    dir = File.join(get_workspace, "stage")
     unless Dir.exist?(dir)
       puts "Creating directory #{dir}"
       FileUtils.mkdir_p(dir) 
     end
-    dir
-  end
-
-  def archive_path(name)
-    File.join(dir_in_workspace("archive"), name)
-  end
-
-  def local_staging_path(name)
-    File.join(dir_in_workspace("stage"), name)
+    File.join(dir, name)
   end
 
   def fetch
     get_dwca.ensure_unpacked          # Extract meta.xml and so on
   end
+
+  # ---------- Harvesting (stage 3)
 
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
@@ -216,16 +191,61 @@ class Resource
     csv_in.close
   end
 
+  # ---------- Processing stage 4: copy workspace to stage...
+
+  # Stage root is shared by all servers
+
+  def get_stage_scp_location(staging, resource_id)
+  end
+
   # Copy the publish/ directory out to the staging host.
   # dir_name specifies a subdirector of the workspace.
 
-  def stage(dir_name = "stage")
-    local_staging_path = File.join(@workspace, dir_name)
-    prepare_manifests(local_staging_path)
-    stage_specifier = "#{@system.get_stage_scp_location(get_publishing_id.to_s)}-#{dir_name}"
-    STDERR.puts("Copying #{local_staging_path} to #{stage_specifier}")
-    stdout_string, status = Open3.capture2("rsync -va #{local_staging_path}/ #{stage_specifier}/")
+  def stage(assembly)
+
+    staging = assembly.get_location("staging")
+
+    local = staging.get_path    # workspace/id/stage/...
+    prepare_manifests(local)
+
+    # Not easy to create directories on remote machine, so just use
+    # hyphenated file names
+
+    remote = staging.get_scp_specifier
+    remote_stage = "#{remote}#{resource_id.to_s}-stage"
+    puts "# Staging location for scp is #{remote_stage}"
+
+    STDERR.puts("# Copying #{local} to #{remote_stage}")
+
+    stdout_string, status = Open3.capture2("rsync -va #{local}/ #{stage_specifier}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
+  end
+
+  # Get a resource id that the graphdb will understand correctly.
+
+  def get_id_for_graphdb(assembly)
+    return @id_for_graphdb if @id_for_graphdb
+
+    id = assembly.get_location("graphdb").id_for_resource(self.name)
+    unless id
+      puts "Checking graphdb to find id for #{self.name}"
+      # See if the graphdb knows about it already, by name
+      r = assembly.get_graph.run_query(
+        'MATCH (r:Resource {name: "#{self.name}"})
+         RETURN r.resource_id
+         LIMIT 1')
+      if r && r.include?("data") && r["data"].length > 0
+        puts "#{r}"
+        id = r["data"][0][0]
+        puts("# Yes! Found resource #{id} by name.")
+      else
+        id = 9000 + rand(1000)
+        puts "** No result from resource by name query.  Assigning a random one: #{id}"
+      end
+    end      
+
+    @id_for_graphdb = id
+    @id_for_graphdb
   end
 
   # For each directory in a tree, write a manifest.json that lists the
@@ -259,50 +279,73 @@ class Resource
     publish_vernaculars
   end
 
-  def erase
-    erase_vernaculars
+  # ---------- Processing stage 5: compute delta
+
+  # TBD
+
+  # ---------- Processing stage 6: erase previous version's stuff
+
+  def count(assembly); count_vernaculars(assembly); end
+
+  def count_vernaculars(assembly)
+    id = get_id_for_graphdb(assembly)
+    query = "MATCH (r:Resource {resource_id: #{id}})
+             MATCH (v:Vernacular)-[:supplier]->(r)
+             RETURN COUNT(v)
+             LIMIT 1"
+    r = assembly.get_graph.run_query(query)
+    count = r ? r["data"][0][0] : "?"
+    puts("#{count} vernacular records")
   end
 
-  def erase_vernaculars
-    query = "MATCH (r:Resource {resource_id: #{get_publishing_id}})
+  def erase(assembly)
+    erase_vernaculars(assembly)
+  end
+
+  def erase_vernaculars(assembly)
+    id = get_id_for_graphdb(assembly)
+    query = "MATCH (r:Resource {resource_id: #{id}})
              MATCH (v:Vernacular)-[:supplier]->(r)
              DETACH DELETE v
              RETURN COUNT(v)
              LIMIT 10000000"
-    r = @system.get_graph.run_query(query)
-    count = r ? r["data"][0][0] : 0
-    STDERR.puts("Erased #{count} relationships")
+    r = assembly.get_graph.run_query(query)
+    if r
+      count = r["data"][0][0]
+      STDERR.puts("Erased #{count} relationships")
+      count
+    else
+      puts "No query result"
+      0
+    end
   end
 
-  def count; count_vernaculars; end
-
-  def count_vernaculars
-    query = "MATCH (r:Resource {resource_id: #{get_publishing_id}})
-             MATCH (v:Vernacular)-[:supplier]->(r)
-             RETURN COUNT(v)
-             LIMIT 1"
-    r = @system.get_graph.run_query(query)
-    count = r ? r["data"][0][0] : "?"
-    puts("#{count} vernacular records")
-  end
+  # ---------- Processing stage 7: graphdb LOAD CSV from stage
 
   def publish
     publish_vernaculars
   end
 
-  def publish_vernaculars
+  def publish_vernaculars(assembly) # slurp
+    id = get_id_for_graphdb(assembly)
 
     # Make sure the resource node is there
-    @system.get_graph.run_query(
-      "MERGE (r:Resource {resource_id: #{get_publishing_id}})
-       RETURN r:resource_id
-       LIMIT 1")
+    assembly.get_graph.run_query(
+      'MERGE (r:Resource {resource_id: #{id}
+                          name: "#{self.name}"})
+       RETURN r.resource_id
+       LIMIT 1')
 
-    url = "#{@system.get_stage_url}#{get_publishing_id.to_s}-stage/vernaculars.csv"
+    prefix = staging.get_url
+    graphdb_name = assembly.get_location("graphdb").name
+    loc = "#{prefix}#{graphdb_name}-#{id.to_s}-stage"
+    puts "# Staging URL is #{loc}"
+
+    url = "#{loc}#{id.to_s}-stage/vernaculars.csv"
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
              WITH row, toInteger(row.page_id) AS page_id
-             MATCH (r:Resource {resource_id: #{get_publishing_id}})
+             MATCH (r:Resource {resource_id: #{id}})
              MERGE (:Page {page_id: page_id})-[:vernacular]->
                    (:Vernacular {string: row.vernacular_string,
                                  language_code: row.language_code,
@@ -310,35 +353,14 @@ class Resource
                    (r)
              RETURN COUNT(row)
              LIMIT 1"
-    r = @system.get_graph.run_query(query)
+    r = assembly.get_graph.run_query(query)
     count = r ? r["data"][0][0] : 0
     STDERR.puts("Merged #{count} relationships from #{url}")
   end
 
-  # ---------- Repository methods
+  # ---------- Taxon id to page id map
 
-  def get_workspace_for_repository
-    dir = File.join(@system.get_workspace_for_repository, get_id_in_repository.to_s)
-    if not File.exists?(dir)
-      puts "Creating directory #{dir}"
-      FileUtils.mkdir_p(dir) 
-    end
-    dir
-  end
-
-  def get_id_in_repository
-    return @id_in_repository if @id_in_repository
-    record = @system.get_resources[get_publishing_id]
-    if record
-      puts "Resource name = #{record['name']}"
-      @id_in_repository = record["repository_id"].to_i
-      File.write(File.join(get_workspace_for_repository, 'id_in_repository'),
-                 "#{@id_in_repository}")
-      @id_in_repository
-    else
-      raise("Publishing resource #{get_publishing_id} has no repository id")
-    end
-  end
+  # We use the repository server for its page_id_map service
 
   # Cache the resource's resource_pk to page id map in memory
   # [might want to cache it in the file system as well]
@@ -358,8 +380,8 @@ class Resource
         page_id_map[row[taxon_id_column]] = row[page_id_column].to_i
       end
     else
-      repository_url = @system.get_url_for_repository
-      id_in_repository = get_id_in_repository
+      repository_url = get_url_for_repository
+      id_in_repository = assembly.get_location("repository").id_for_resource(name)
       STDERR.puts "Getting page ids for #{id_in_repository} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
@@ -411,6 +433,12 @@ class Resource
     STDERR.puts "Got #{page_id_map.size} page ids"
     @page_id_map = page_id_map
     @page_id_map
+  end
+
+  def get_url_for_repository(assembly)
+    repository_url = assembly.get_location("repository").get_url
+    repository_url += "/" unless repository_url.end_with?("/")
+    repository_url
   end
 
 end

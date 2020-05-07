@@ -1,43 +1,48 @@
 require 'resource'
+require 'assembly'
 
 namespace :resource do
+
+  def get_assembly
+    System.system.get_assembly(ENV['CONF'])
+  end
 
   def get_resource
     ENV['CONF'] || raise("Please provide env var CONF")
     ENV['ID'] || raise("Please provide env var ID")
-    Resource.new(
-      system: System.system(ENV['CONF']),
-      publishing_id: ENV['ID'],
-      repository_id: ENV['REPOSITORY_ID'],
-      opendata_url: ENV['OPENDATA_URL'])
+    a = get_assembly
+    System.system.get_resource_from_id(ENV['ID'].to_i)
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
   task :harvest do 
-    ENV['OPENDATA_URL'] || STDERR.puts("No OPENDATA_URL given.")
-    r = get_resource
-    r.harvest
+    get_resource.harvest
     get_resource.stage
   end
 
+  desc "Put onto staging site"
   task :stage do
-    get_resource.stage
+    get_resource.stage(get_assembly)
   end
 
+  desc "Erase all of this resource's contributed information from graphdb"
   task :erase do
-    get_resource.erase
+    get_resource.erase(get_assembly)
   end
 
+  desc "Load into graphdb from staging site"
   task :publish do
-    get_resource.publish
+    get_resource.publish(get_assembly)
   end
 
+  desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
     get_resource.fetch
   end
 
+  desc "Number of ... whats?"
   task :count do
-    get_resource.count
+    get_resource.count(get_assembly)
   end
 
 end

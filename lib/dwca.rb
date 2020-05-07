@@ -69,7 +69,7 @@ class Dwca
     if url_valid?(url) && File.exist?(path) && File.size(path).positive?
       raise "Using previously downloaded archive.  rm -r #{get_workspace} to force reload."
     else
-      System.get_from_internet(url, path)
+      System.copy_from_internet(url, path)
     end
 
     @dwca_path
