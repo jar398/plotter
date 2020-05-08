@@ -18,15 +18,14 @@ class Dwca
   end
 
   def get_workspace
-    unless Dir.exist?(@dwca_workspace)
-      puts "Creating directory #{@dwca_workspace}"
-      FileUtils.mkdir_p(@dwca_workspace) 
-    end
+    FileUtils.mkdir_p(@dwca_workspace) 
     @dwca_workspace
   end
 
-  def get_unpacked_loc
-    File.join(@dwca_workspace, "unpacked")
+  # Where the DwCA is found on the internet
+  def get_dwca_url
+    raise("No DWCA_URL was specified") unless @dwca_url
+    @dwca_url
   end
 
   # Where the DwCA file is stored in local file system
@@ -34,7 +33,7 @@ class Dwca
     return @dwca_path if @dwca_path
     if @dwca_url
       ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
-      File.join(@dwca_workspace, "dwca.#{ext}")
+      path = File.join(@dwca_workspace, "dwca.#{ext}")
     else
       zip = File.join(@dwca_workspace, "dwca.zip")
       return zip if File.exists?(zip)
@@ -44,8 +43,11 @@ class Dwca
     end
   end
 
-  def get_dwca_url
-    @dwca_url || raise("No DWCA_URL was specified")
+  # Where the unpacked files should be put
+  def get_unpacked_loc
+    dir = File.join(get_workspace, "unpacked")
+    FileUtils.mkdir_p(dir)
+    dir
   end
 
   # Ensure that the unpack/ directory is populated from the archive file.
@@ -57,13 +59,13 @@ class Dwca
     # Files aren't there.  Ensure that the archive is present locally,
     # then unpack it.
 
-    unpack_archive(ensure_archive_local_copy(dir))
+    unpack_archive(ensure_archive_local_copy(dir), dir)
     # We can delete the zip file afterwards if we want... won't be needed
   end
 
   def ensure_archive_local_copy(dir)
-    path = get_dwca_path
     url = get_dwca_url
+    path = get_dwca_path
 
     # Use existing archive if it's there
     if url_valid?(url) && File.exist?(path) && File.size(path).positive?
@@ -72,7 +74,7 @@ class Dwca
       System.copy_from_internet(url, path)
     end
 
-    @dwca_path
+    path
   end
 
   def url_valid?(dwca_url)
@@ -91,12 +93,8 @@ class Dwca
   end
 
   # Adapted from harvester app/models/drop_dir.rb
-  # File is either something.tgz or something.zip
-  def unpack_archive(archive_file)
-    dest = ensure_unpacked
-    dir = File.dirname(dest)
-    FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
-                      
+  # archive_file is either something.tgz or something.zip
+  def unpack_archive(archive_file, dir)
     temp = File.join(get_workspace, "tmp")
     FileUtils.mkdir_p(temp) unless Dir.exist?(temp)
 
@@ -109,17 +107,17 @@ class Dwca
       raise("Unknown file extension: #{basename}#{ext}")
     end
     source = tuck(temp)
-    if File.exists?(dest)
-      puts "Removing #{dest}"
-      `rm -rf #{dest}` 
+    if File.exists?(dir)
+      puts "Removing #{dir}"
+      `rm -rf #{dir}` 
     end
-    puts "Moving #{source} to #{dest}"
-    FileUtils.mv(source, dest)
+    puts "Moving #{source} to #{dir}"
+    FileUtils.mv(source, dir)
     if File.exists?(temp)
       puts "Removing #{temp}"
       `rm -rf #{temp}`
     end
-    dest
+    dir
   end
 
   def untgz(archive_file, dir)

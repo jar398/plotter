@@ -31,14 +31,15 @@ class Resource
   def name; @config["name"]; end
 
   def get_workspace             # For this resource, with its multiple presences
-    File.join(@system.get_workspace,
-              'resources',
-              @system.id_for_resource(self.name).to_s)
+    dir = File.join(@system.get_workspace,
+                    'resources',
+                    id_for_resource.to_s)
+    FileUtils.mkdir_p(dir)
+    dir
   end
 
-  def merge(record)
-    # system config overrides resources.json
-    @config.merge!(record) {|key, oldval, newval| oldval}
+  def id_for_resource
+    @config["id"]
   end
 
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
@@ -47,11 +48,11 @@ class Resource
 
   def get_dwca
     return @dwca if @dwca
-
     opendata_url = @config["landing_page"]
     raise "opendata URL is unknown" unless opendata_url
-    @dwca = Dwca.new(File.join(get_workspace, "dwca"),
-                     dwca_url: get_dwca_url(@opendata_url))
+    dir = File.join(get_workspace, "dwca")
+    FileUtils.mkdir_p(dir)
+    @dwca = Dwca.new(dir, dwca_url: get_dwca_url(opendata_url))
     @dwca
   end
 
@@ -80,10 +81,7 @@ class Resource
 
   def local_staging_path(name)
     dir = File.join(get_workspace, "stage")
-    unless Dir.exist?(dir)
-      puts "Creating directory #{dir}"
-      FileUtils.mkdir_p(dir) 
-    end
+    FileUtils.mkdir_p(dir) 
     File.join(dir, name)
   end
 
@@ -224,9 +222,12 @@ class Resource
   # Get a resource id that the graphdb will understand correctly.
 
   def get_id_for_graphdb(assembly)
+    raise "No assembly" unless assembly
     return @id_for_graphdb if @id_for_graphdb
 
-    id = assembly.get_location("graphdb").id_for_resource(self.name)
+    loc = assembly.get_location("graphdb")
+    raise "No graphdb location" unless loc
+    id = loc.id_for_resource(self.name)
     unless id
       puts "Checking graphdb to find id for #{self.name}"
       # See if the graphdb knows about it already, by name

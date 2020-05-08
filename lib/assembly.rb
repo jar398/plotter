@@ -27,10 +27,13 @@ class Assembly
 
   def get_location(role)
     if @config.include?(role)
-      @system.get_location(@config[role])
+      loc = @system.get_location(@config[role])
+      raise "No location in role #{role} called #{loc.name}" unless loc
     else
-      raise "No #{role} in #{@assembly_name}" unless @system.get_location(role)
+      loc = @system.get_location(role)
+      raise "No #{role} in #{@assembly_name}" unless loc
     end
+    loc
   end
 
   def get_workspace        # For all purposes

@@ -35,7 +35,6 @@ class System
         end
       end
       raise('Did not download') unless File.exist?(path) && File.size(path).positive?
-      File.write(File.join(ws, "url"), url)
       STDERR.puts "... #{File.size(path)} octets"
       path
     end
@@ -51,18 +50,48 @@ class System
     config["locations"].each do |tag, config|
       @locations[tag] = Location.new(self, config, tag)
     end
+    initialize_resources(config["resources"])
+  end
+
+  def get_workspace
+    dir = get_location("workspace").get_path
+    FileUtils.mkdir_p(dir)
+    dir
+  end
+
+  def initialize_resources(record_list)
+    records = {}   # by name
+    record_list.each do |record|
+      records[record["name"]] = record
+    end
+    more = get_location("prod_publishing").get_resource_records
+    more.each do |record|
+      name = record["name"]
+      if records.key?(name)
+        records[name].merge!(record) do |key, oldval, newval|
+          puts "** Value conflict (#{oldval}->#{newval}) for key #{key}" \
+            unless oldval == newval
+          oldval
+        end
+      else
+        records[name] = record
+      end
+    end
+
     @resources = {}  # by name
     @resources_by_id = {}
-    config["resources"].each do |record|
-      rec = Resource.new(self, record)
-      @resources[record["name"]] = rec
+    records.each do |name, record|
+      res = Resource.new(self, record)
+      @resources[record["name"]] = res
       id = record["id"]
-      @resources_by_id[id] = rec if id
+      @resources_by_id[id] = res if id
     end
   end
 
   def get_assembly(tag)
-    @assemblies[tag]
+    a = @assemblies[tag]
+    raise "No such assembly: #{tag}" unless a
+    a
   end
 
   def get_location(tag)
@@ -76,24 +105,11 @@ class System
     @resources[name]
   end
 
+  # Resource from master resource id (usu. production publishing site)
+
   def get_resource_from_id(id)
     return @resources_by_id[id] if @resources_by_id.include?(id)
     rec = get_location("prod_publishing").get_resource_record_by_id(id)
     @resources[rec["name"]] = Resource.new(self, rec)
-  end
-
-  # Master resource id from production publishing site
-
-  def id_for_resource(name)
-    if @resources.include?(name)
-      @resources[name]["id"]
-    else
-      loc = get_location("prod_publishing")
-      raise "prod_publishing not configured!?" unless loc
-      id = loc.id_for_resource(name)
-      raise "No id configured for this resource.  Please choose an id
-             and put it in config/config.yml." unless id
-      id
-    end
   end
 end
