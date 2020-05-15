@@ -44,14 +44,18 @@ class Painter
 
   LIMIT = 1000000
 
-  def initialize(resource)
+  def initialize(resource, assembly)
     @resource = resource
     @pagesize = 10000
-    @system = resource.system
+    @assembly = assembly
   end
 
   def get_graph
-    @system.get_graph
+    @assembly.get_graph
+  end
+
+  def get_id
+    @resource.get_id_for_graphdb(@assembly)
   end
 
   # Infer and stage trait relationships (publish is separate)
@@ -70,7 +74,7 @@ class Painter
   # Remove all of a resource's inferred trait assertions
 
   def erase(resource = @resource)
-    r = run_query("MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+    r = run_query("MATCH (:Resource {resource_id: #{get_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
                    DELETE r
@@ -84,7 +88,7 @@ class Painter
   # Display count of a resource's inferred trait assertions
 
   def count(resource = @resource)
-    r = run_query("MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+    r = run_query("MATCH (:Resource {resource_id: #{get_id}})<-[:supplier]-
                          (:Trait)<-[r:inferred_trait]-
                          (:Page)
                    RETURN COUNT(*)
@@ -104,7 +108,7 @@ class Painter
   # (i.e. have parents), and every stop is under some start
 
   def qc(resource = @resource)
-    id = resource.get_publishing_id
+    id = get_id
     qc_presence(resource, Property.starts_at, "start")
     qc_presence(resource, Property.stops_at, "stop")
 
@@ -138,7 +142,7 @@ class Painter
 
   def qc_presence(resource, property, which)
     term = property.uri
-    id = resource.get_publishing_id
+    id = get_id
     r = run_query("MATCH (:Resource {resource_id: #{id}})<-[:supplier]-
                          (:Trait)-[:metadata]->
                          (m:MetaData)-[:predicate]->
@@ -288,7 +292,7 @@ class Painter
     # Currently assumes the painted trait has an object_term, but this
     # should be generalized to allow measurement as well
     query =
-      "MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+      "MATCH (:Resource {resource_id: #{get_id}})<-[:supplier]-
              (t:Trait)-[:metadata]->
              (m:MetaData)-[:predicate]->
              (:Term {uri: '#{Property.starts_at.uri}'})
@@ -303,7 +307,7 @@ class Painter
 
     # Erase inferred traits from stop point to descendants.
     query = 
-      "MATCH (:Resource {resource_id: #{resource.get_publishing_id}})<-[:supplier]-
+      "MATCH (:Resource {resource_id: #{get_id}})<-[:supplier]-
              (t:Trait)-[:metadata]->
              (m:MetaData)-[:predicate]->
              (:Term {uri: '#{Property.stops_at.uri}'})
@@ -330,7 +334,7 @@ class Painter
 
   def publish(resource = @resource)
 
-    inf_url = "#{system.get_stage_url}#{resource.get_publishing_id.to_s}-inferences/"
+    inf_url = "#{system.get_stage_url}#{get_id.to_s}-inferences/"
     puts inf_url
     table = Table.new(url: "#{inf_url}inferences.csv")
 
@@ -418,7 +422,7 @@ class Painter
 
   def show_stxx_directives(resource, property, tag)
     term = property.uri
-    id = resource.get_publishing_id
+    id = get_id
     r = run_query(
       "WITH '#{tag}' AS tag
          MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
@@ -478,11 +482,11 @@ class Painter
 
   def add_directive(page_id, trait_id, pred, tag, resource = @resource)
     # Pseudo-trait id unique only within resource
-    directive_eol_pk = "R#{resource.get_publishing_id}-BP#{tag}.#{page_id}.#{trait_id}"
+    directive_eol_pk = "R#{get_id}-BP#{tag}.#{page_id}.#{trait_id}"
     # Add when schema permits: object_page_id: #{page_id},
     r = run_query(
       "MATCH (t:Trait {resource_pk: '#{trait_id}'})-[:supplier]->
-             (r:Resource {resource_id: #{resource.get_publishing_id}})
+             (r:Resource {resource_id: #{get_id}})
        MERGE (pred:Term {uri: '#{pred}'})
        MERGE (m:MetaData {eol_pk: '#{directive_eol_pk}',
                           measurement: '#{page_id}'})
@@ -499,7 +503,7 @@ class Painter
 
   # *** Debugging utility ***
   def show(resource = @resource)
-    id = resource.get_publishing_id
+    id = get_id
     show_directives(resource)
     puts "State:"
     # List our private taxa
@@ -555,7 +559,7 @@ class Painter
   def populate(resource, page_origin = TESTING_PAGE_ORIGIN)
 
     puts "Origin - #{page_origin}"
-    id = resource.get_publishing_id
+    id = get_id
 
     # Create sample hierarchy
     run_query(
@@ -610,7 +614,7 @@ class Painter
 
   # Delete a resource
   def flush(resource = @resource)
-    id = resource.get_publishing_id
+    id = get_id
 
     unless id == @testing_resource
       raise("Hey, only delete the testing resource!") 

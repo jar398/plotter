@@ -13,14 +13,19 @@ require 'assembly'
 require 'location'
 require 'resource'
 
+# Singleton, I suppose...
+
 class System
 
   class << self
-    def system                  # Singleton, basically...
+    # Class variable: @system
+
+    def system(config = nil)
       return @system if @system
-      config = YAML.load(File.read("config/config.yml")) ||
-               raise("No configuration found")
+      config = YAML.load(File.read("config/config.yml")) unless config
+      config = config || raise("No configuration provided")
       @system = System.new(config)
+      @system                   # singleton I suppose
     end
 
     def copy_from_internet(url, path)
@@ -40,7 +45,7 @@ class System
     end
   end
 
-  def initialize(config)
+  def initialize(config)    # config could have been json serialized
     @config = config
     @assemblies = {}
     config["assemblies"].each do |tag, config|

@@ -11,10 +11,10 @@ namespace :paint do
   def testing_resource; 99999; end
 
   def get_painter
-    Painter.new(
-      Resource.new(
-        system: System.system(ENV['CONF']),
-        publishing_id: ENV['ID'] || testing_resource))
+    sys = System.system()
+    id = ENV['ID'].to_i || testing_resource
+    resource = sys.get_resource_from_id(id)
+    Painter.new(resource, sys.get_assembly(ENV['CONF']))
   end
 
   # Ordinary tasks

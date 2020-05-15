@@ -22,10 +22,12 @@ require 'property'
 
 class Resource
 
-  def initialize(system, config)
+  # Called at startup time
+
+  def initialize(system, rec)
     @system = system
-    raise "gotta have a name at least" unless config["name"]
-    @config = config
+    raise "gotta have a name at least" unless rec["name"]
+    @config = rec               # Resource record (from JSON/YAML)
   end
 
   def name; @config["name"]; end

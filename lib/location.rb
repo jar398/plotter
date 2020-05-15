@@ -77,7 +77,7 @@ class Location
         r = nil if other_id > id
       end
       if r
-        puts "got 40" if id == 40
+        puts "# got 40" if id == 40
         @records_by_id[id] = r
         @records_by_name[name] = r
       end
@@ -92,10 +92,12 @@ class Location
   end
 
   def get_resource_record_by_id(id)
+    id = id.to_i
     puts "looking for #{id}"
     get_resource_records
     puts "here are some #{@records_by_id.keys[0..5]}"
     rec = @records_by_id[id]
+    raise "No resource record: #{id}" unless rec
     puts "got #{rec['name']}"
     rec
   end
