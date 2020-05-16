@@ -1,13 +1,4 @@
-# Local locations for processing pipeline:
-
-# Ids in workspace directory names are from production publishing...
-
-
-#  dwca/ID/ID.tgz or ID.zip   - dwca file, mirrors opendata
-#  dwca/ID/unpack/            - extracted from dwca
-#  stage/ID/          - files prepared for Cypher LOAD CSV
-
-# For staging, the file names are the same, but with ID-x instead of ID/x.
+# For workspace structure, see README.md
 
 require 'csv'
 require 'net/http'
@@ -22,53 +13,59 @@ require 'property'
 
 class Resource
 
-  # Called at startup time
-
-  def initialize(system, rec)
-    @system = system
+  def initialize(instance, rec)
+    @instance = instance
     raise "gotta have a name at least" unless rec["name"]
-    @config = rec               # Resource record (from JSON/YAML)
+    @config = rec               # Publishing resource record (from JSON/YAML)
   end
+
+  # ---------- Various 'identifiers'...
 
   def name; @config["name"]; end
 
+  def get_qualified_id
+    pid = @config["id"]
+    # TBD: generate random publishing id if none found in config...
+    rid = @config["repository_id"]
+    suffix = (rid ? ".#{rid}" : "")
+    qid = "#{@instance.instance_name}.#{pid}#{suffix}"
+    @config["qualified_id"] = qid
+    qid
+  end
+
+  def graphdb_id
+    @config["id"]
+  end
+
+  def repository_id
+    @config["repository_id"]
+  end
+
+  # ---------- 
+
   def get_workspace             # For this resource, with its multiple presences
-    dir = File.join(@system.get_workspace,
-                    'resources',
-                    id_for_resource.to_s)
+    dir = File.join(@instance.get_workspace,
+                    "resources",
+                    get_qualified_id)
     FileUtils.mkdir_p(dir)
     dir
   end
 
-  def id_for_resource
-    @config["id"]
+  def get_staging_dir
+    dir = File.join(@instance.get_workspace,
+                    "staging",
+                    get_qualified_id)
+    FileUtils.mkdir_p(dir)
+    dir
   end
+
 
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
 
   # Need one of dwca_path (local), dwca_url (remote opendata)
 
   def get_dwca
-    return @dwca if @dwca
-    opendata_url = @config["landing_page"]
-    raise "opendata URL is unknown" unless opendata_url
-    dir = File.join(get_workspace, "dwca")
-    FileUtils.mkdir_p(dir)
-    @dwca = Dwca.new(dir, dwca_url: get_dwca_url(opendata_url))
-    @dwca
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb.
-  # The HTML file is small; no need to cache it.
-  def get_dwca_url(opendata_url)
-    begin
-      raw = open(opendata_url)
-    rescue Net::ReadTimeout => e
-      fail_with(e)
-    end
-    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
-    html = Nokogiri::HTML(raw)
-    html.css('p.muted a').first['href']
+    @instance.get_opendata_dwca(@config["landing_page"], name)
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
@@ -80,12 +77,6 @@ class Resource
 
   # ---------- Processing stage 3: workspace to workspace conversion...
   #   convert local unpacked copy of dwca to files for graphdb
-
-  def local_staging_path(name)
-    dir = File.join(get_workspace, "stage")
-    FileUtils.mkdir_p(dir) 
-    File.join(dir, name)
-  end
 
   def fetch
     get_dwca.ensure_unpacked          # Extract meta.xml and so on
@@ -137,10 +128,11 @@ class Resource
     end
     puts "# Input position for each output position: #{mapping.collect{|x,y|y}}"
 
+    dir = "vernaculars"
     fname = "vernaculars.csv"
     out_table = Table.new(properties: props,
                           location: fname,
-                          path: local_staging_path(fname))
+                          path: File.join(get_staging_dir, dir, fname))
 
     counter = 0
     csv_in = vt.open_csv_in
@@ -191,64 +183,45 @@ class Resource
     csv_in.close
   end
 
-  # ---------- Processing stage 4: copy workspace to stage...
+  # ---------- Processing stage 4: copy workspace to staging 
+  # area on server
 
-  # Stage root is shared by all servers
+  # For staging area location and structure see ../README.md
 
-  def get_stage_scp_location(staging, resource_id)
+  def get_staging_url_prefix    # specific to this resource
+    prefix_all = @instance.get_staging_location.get_url
+    "#{prefix_all}#{get_qualified_id}-"
   end
 
-  # Copy the publish/ directory out to the staging host.
-  # dir_name specifies a subdirector of the workspace.
+  def get_staging_scp_prefix    # specific to this resource
+    prefix_all = @instance.get_staging_location.get_scp_specifier
+    # maybe switch to - instead of / ?
+    "#{prefix_all}#{get_qualified_id}-"
+  end
+
+  # Copy the staging/TAG.PID.RID/ directory out to the staging host.
 
   def stage(assembly)
+    copy_to_stage("vernaculars")
+  end
 
-    staging = assembly.get_location("staging")
+  def copy_to_stage(relative)
+    local = File.join(get_staging_dir, relative)
+    remote = "#{get_staging_scp_prefix}#{relative}"
 
-    local = staging.get_path    # workspace/id/stage/...
     prepare_manifests(local)
 
-    # Not easy to create directories on remote machine, so just use
-    # hyphenated file names
-
-    remote = staging.get_scp_specifier
-    remote_stage = "#{remote}#{resource_id.to_s}-stage"
-    puts "# Staging location for scp is #{remote_stage}"
-
-    STDERR.puts("# Copying #{local} to #{remote_stage}")
-
-    stdout_string, status = Open3.capture2("rsync -va #{local}/ #{stage_specifier}/")
+    STDERR.puts("# Copying #{local} to #{remote}")
+    stdout_string, status = Open3.capture2("rsync -va #{local}/ #{remote}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
   end
 
   # Get a resource id that the graphdb will understand correctly.
 
   def get_id_for_graphdb(assembly)
-    raise "No assembly" unless assembly
-    return @id_for_graphdb if @id_for_graphdb
-
-    loc = assembly.get_location("graphdb")
-    raise "No graphdb location" unless loc
-    id = loc.id_for_resource(self.name)
-    unless id
-      puts "Checking graphdb to find id for #{self.name}"
-      # See if the graphdb knows about it already, by name
-      r = assembly.get_graph.run_query(
-        'MATCH (r:Resource {name: "#{self.name}"})
-         RETURN r.resource_id
-         LIMIT 1')
-      if r && r.include?("data") && r["data"].length > 0
-        puts "#{r}"
-        id = r["data"][0][0]
-        puts("# Yes! Found resource #{id} by name.")
-      else
-        id = 9000 + rand(1000)
-        puts "** No result from resource by name query.  Assigning a random one: #{id}"
-      end
-    end      
-
-    @id_for_graphdb = id
-    @id_for_graphdb
+    id = @config["id"]
+    raise "No graphdb resource id for name #{self.name}" unless id
+    id
   end
 
   # For each directory in a tree, write a manifest.json that lists the
@@ -330,25 +303,23 @@ class Resource
   end
 
   def publish_vernaculars(assembly) # slurp
-    id = get_id_for_graphdb(assembly)
+    url = "#{get_staging_url_prefix}vernaculars.csv"
+    puts "# Staging URL is #{url}"
+
+    id_in_graph = get_id_for_graphdb(assembly)
 
     # Make sure the resource node is there
     assembly.get_graph.run_query(
-      'MERGE (r:Resource {resource_id: #{id}
+      'MERGE (r:Resource {resource_id: #{id_in_graph}
                           name: "#{self.name}"})
        RETURN r.resource_id
        LIMIT 1')
 
-    prefix = staging.get_url
-    graphdb_name = assembly.get_location("graphdb").name
-    loc = "#{prefix}#{graphdb_name}-#{id.to_s}-stage"
-    puts "# Staging URL is #{loc}"
-
-    url = "#{loc}#{id.to_s}-stage/vernaculars.csv"
+    # Need to chunk this.
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
              WITH row, toInteger(row.page_id) AS page_id
-             MATCH (r:Resource {resource_id: #{id}})
+             MATCH (r:Resource {resource_id: #{id_in_graph}})
              MERGE (:Page {page_id: page_id})-[:vernacular]->
                    (:Vernacular {string: row.vernacular_string,
                                  language_code: row.language_code,
@@ -383,8 +354,8 @@ class Resource
         page_id_map[row[taxon_id_column]] = row[page_id_column].to_i
       end
     else
-      repository_url = get_url_for_repository
-      id_in_repository = assembly.get_location("repository").id_for_resource(name)
+      repository_url = get_url_for_repository(assembly)
+      id_in_repository = assembly.repo_id_for_resource(name)
       STDERR.puts "Getting page ids for #{id_in_repository} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map

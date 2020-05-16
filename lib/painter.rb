@@ -29,10 +29,10 @@
 #
 # ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
 
-# Branch painting generates a lot of logging output.  If you have a
-# local instance you might want to put 'config.log_level = :warn' in
-# config/environments/development.rb to reduce noise emitted to
-# console.
+# Branch painting makes the publishing server generate a lot of
+# logging output.  If you have a local instance you might want to put
+# 'config.log_level = :warn' in config/environments/development.rb to
+# reduce noise emitted to console.
 
 require 'csv'
 require 'open3'
@@ -46,12 +46,16 @@ class Painter
 
   def initialize(resource, assembly)
     @resource = resource
-    @pagesize = 10000
+    @chunksize = 10000
     @assembly = assembly
   end
 
   def get_graph
     @assembly.get_graph
+  end
+
+  def run_query(cql)
+    get_graph.run_query(cql)
   end
 
   def get_id
@@ -113,7 +117,7 @@ class Painter
     qc_presence(resource, Property.stops_at, "stop")
 
     # Make sure every stop point is under some start point
-    r = run_query("MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
+    q = "MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
                          (t:Trait)-[:metadata]->
                          (m2:MetaData)-[:predicate]->
                          (:Term {uri: '#{Property.stops_at.uri}'})
@@ -130,8 +134,11 @@ class Painter
                    WHERE z IS NULL
                    RETURN stop_id, stop.canonical, t.eol_pk
                    ORDER BY stop.page_id, stop_id
-                   LIMIT 1000")
+                   LIMIT 1000"
+    puts q
+    r = run_query(q)
     if r
+      puts "#{r['data'].length} directives"
       r["data"].each do |id, canonical, trait|
         STDERR.puts("Stop page #{id} = #{canonical} not under any start page for #{trait}")
       end
@@ -184,16 +191,16 @@ class Painter
     end
   end
 
-  def inferences_dir(resource = @resource)
-    resource.dir_in_workspace("inferences")
+  def inferences_dir
+    path = File.join(@resource.get_staging_dir, "inferences")
+    FileUtils.mkdir_p(path)
+    path
   end
 
-  def inferences_path(resource, name)
-    File.join(inferences_dir(resource = @resource), name)
-  end
-
-  def temp_path(resource, name)
-    File.join(resource.dir_in_workspace("inferences.tmp"), name)
+  def temp_dir    # for assert and retract files
+    path = File.join(@resource.get_workspace, "paint")
+    FileUtils.mkdir_p(path)
+    path
   end
 
   # Dry run - find all inferences that would be made by branch
@@ -242,7 +249,7 @@ class Painter
       STDERR.puts("No stop-point descendants to remove")
     end
 
-    net_path = inferences_path(resource, "inferences.csv")
+    net_path = File.join(inferences_dir, "inferences.csv")
 
     # Write net inferences as single CSV (optional)
     # TBD: Use Table class...
@@ -266,16 +273,16 @@ class Painter
 
   def explode(inferences, net_path)
     a = inferences.to_a
-    number_of_chunks = a.size / @pagesize + 1
+    number_of_chunks = a.size / @chunksize + 1
     dir_path = net_path + ".chunks"
     FileUtils.mkdir_p dir_path
     (0...number_of_chunks).each do |chunk|
-      n = chunk * @pagesize
-      chunk_path = File.join(dir_path, "#{n}_#{@pagesize}.csv")
+      n = chunk * @chunksize
+      chunk_path = File.join(dir_path, "#{n}_#{@chunksize}.csv")
       CSV.open(chunk_path, "wb:UTF-8") do |csv|
         STDERR.puts("Writing #{chunk_path}")
         csv << ["page_id", "name", "trait", "measurement", "object_name"]
-        a[n...n+@pagesize].each do |key, info|
+        a[n...n+@chunksize].each do |key, info|
           (page, trait) = key
           (name, value, ovalue) = info
           csv << [page, name, trait, value, ovalue]
@@ -302,7 +309,9 @@ class Painter
        #{merge}"
     STDERR.puts(query)
     assert_path = 
-      run_chunked_query(query, @pagesize, temp_path(resource, "assert.csv"))
+      run_chunked_query(query,
+                        @chunksize,
+                        File.join(temp_dir, "assert.csv"))
     return unless assert_path
 
     # Erase inferred traits from stop point to descendants.
@@ -318,25 +327,27 @@ class Painter
        #{delete}"
     STDERR.puts(query)
     retract_path =
-      run_chunked_query(query, @pagesize, temp_path(resource, "retract.csv"), skipping)
+      run_chunked_query(query,
+                        @chunksize,
+                        File.join(temp_dir, "retract.csv"),
+                        skipping)
     [assert_path, retract_path]
   end
 
-  # Need to know:
-  #  1. The way to refer to the server directory using scp
-  #  2. The way to refer to the server directory using http
+  # For staging area location and structure see ../README.md
 
-  def stage(resource = @resource)
-    resource.stage("inferences")
+  def stage
+    @resource.copy_to_stage("inferences")
   end
 
   # Assumes resource is staged
 
   def publish(resource = @resource)
+    url = "#{resource.get_staging_url_prefix}inferences"
+    puts "# Staging URL is #{url}"
 
-    inf_url = "#{system.get_stage_url}#{get_id.to_s}-inferences/"
-    puts inf_url
-    table = Table.new(url: "#{inf_url}inferences.csv")
+    # only file in directory, for now
+    table = Table.new(url: "#{url}inferences.csv")
 
     table.get_part_urls.each do |part_url|
       # row will have strings, but page ids are integers.
@@ -358,17 +369,13 @@ class Painter
     end
   end
 
-  # For long-running queries (writes to path).  Return value if path
+  # For long-running queries (writes to path).  Return value is path
   # on success, nil on failure.
 
-  def run_chunked_query(cql, pagesize, path, skipping=true)
-    Paginator.new(get_graph).supervise_query(cql, nil, pagesize, path, skipping)
-  end
-
-  # For small / debugging queries
-
-  def run_query(cql)
-    get_graph.run_query(cql)
+  def run_chunked_query(cql, chunksize, csv_path,
+                        skipping=true, assemble=true)
+    p = Paginator.new(get_graph)
+    p.supervise_query(cql, nil, chunksize, csv_path, skipping, assemble)
   end
 
   # ------------------------------------------------------------------
@@ -428,7 +435,7 @@ class Painter
          MATCH (r:Resource {resource_id: #{id}})<-[:supplier]-
                (t:Trait)-[:metadata]->
                (m:MetaData)-[:predicate]->
-               (:Term {uri: '#{uri}'}),
+               (:Term {uri: '#{term}'}),
                (p:Page)-[:trait]->(t)
          WITH p, t, #{cast_page_id('m')} as point_id, tag
          MATCH (point:Page {page_id: point_id})

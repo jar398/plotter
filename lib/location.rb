@@ -1,10 +1,10 @@
 
 class Location
 
-  def initialize(system, config, tag)
+  def initialize(system, config, name)
     @system = system
     @config = config
-    @name = tag
+    @name = name
   end
 
   def name; @name; end
@@ -12,8 +12,9 @@ class Location
   def get_graph
     return @graph if @graph
 
-    url = get_url
+    url = @config["neo4j"]
     if url
+      puts "# Neo4j URL is #{url}"
       @graph = Graph.via_neography(url)
     else
       v3api = @system.get_location(@config["via_api"])
@@ -27,6 +28,7 @@ class Location
     token_path = @config["update_token_file"] ||
                  @config["token_file"]
     token = File.read(token_path).strip
+    puts "# Graphdb proxy URL is #{get_url}"
     Graph.via_http(get_url, token)
   end
 
@@ -35,7 +37,7 @@ class Location
     return @config["path"]
   end
 
-  # for workspace, page ids, etc
+  # for workspace, page ids, staging, etc
   def get_url
     return @config["url"]
   end
@@ -93,23 +95,30 @@ class Location
 
   def get_resource_record_by_id(id)
     id = id.to_i
-    puts "looking for #{id}"
     get_resource_records
-    puts "here are some #{@records_by_id.keys[0..5]}"
     rec = @records_by_id[id]
-    raise "No resource record: #{id}" unless rec
-    puts "got #{rec['name']}"
+    puts "No resource record at #{@name} with id #{id}" unless rec
+    # Don't raise exception
     rec
   end
 
   # Get an id that this particular location will understand
 
   def id_for_resource(name)
-    probe = @config["ids_from"]
+    probe = @config["ids_from"]    # Hack for graphdb
     if probe
-      @system.get_location(probe).id_for_resource(name)
+      loc = @system.get_location(probe)
+      raise "There is no ids_from location #{loc}" unless loc
+      id = loc.id_for_resource(name)
+      puts "There is no id for #{name} at #{loc}" unless id
+      id
     else
-      raise "no id for this resource" unless get_resource_record(name)["id"]
+      rec = get_resource_record(name)
+      if rec
+        rec["id"]
+      else
+        puts "There is no resource record for #{id} at #{loc}"
+      end
     end
   end
 

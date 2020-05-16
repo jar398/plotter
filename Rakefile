@@ -1,6 +1,10 @@
 require "bundler/gem_tasks"
 require "rake/testtask"
 
+# Consider:
+#   wget -O config/prod-publishing/resources.json \
+#      "https://eol.org/resources.json?per_page=10000"
+
 Rake.add_rakelib 'lib/tasks'
 
 Rake::TestTask.new(:test) do |t|

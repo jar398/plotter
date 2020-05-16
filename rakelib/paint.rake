@@ -1,5 +1,5 @@
 # Typical sequence:
-#   paint
+#   prepare
 #   publish
 
 require 'resource'
@@ -11,20 +11,22 @@ namespace :paint do
   def testing_resource; 99999; end
 
   def get_painter
-    sys = System.system()
-    id = ENV['ID'].to_i || testing_resource
-    resource = sys.get_resource_from_id(id)
-    Painter.new(resource, sys.get_assembly(ENV['CONF']))
+    tag = ENV['CONF'] || raise("Please provide env var CONF")
+    id = ENV['ID'] || testing_resource
+    assem = Assembly.assembly(tag)
+    resource = assem.get_resource_by_id(id.to_i)
+    puts "Resource #{id} on #{tag} is understood as #{resource.name}"
+    Painter.new(resource, assem)
   end
 
   # Ordinary tasks
 
   desc "Compute inferred relationships and put them on the staging site"
-  task :paint do 
+  task :prepare do 
     get_painter.paint
   end
 
-  desc "Load inferred relationships from staging site into the graphdb"
+  desc "Transfer inferred relationships from staging site into the graphdb"
   task :publish do 
     get_painter.publish
   end
@@ -49,6 +51,11 @@ namespace :paint do
   desc "Set up dummy resource for debugging purposes"
   task :populate do 
     get_painter.populate
+  end
+
+  desc "List start and stop directives"
+  task :show_directives do
+    get_painter.show_directives
   end
 
   # Subtasks

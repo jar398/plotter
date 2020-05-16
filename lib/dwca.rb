@@ -3,6 +3,7 @@
 require 'fileutils'
 require 'nokogiri'
 require 'open-uri'
+require 'json'
 
 require 'table'
 require 'property'
@@ -10,15 +11,20 @@ require 'system'
 
 class Dwca
 
-  def initialize(dwca_workspace, dwca_path: nil, dwca_url: nil)
+  def initialize(dwca_workspace, dwca_url, properties)
     @dwca_workspace = dwca_workspace
-    @dwca_path = dwca_path
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
+    @properties = properties
     @tables = nil
   end
 
   def get_workspace
-    FileUtils.mkdir_p(@dwca_workspace) 
+    unless File.exists?(@dwca_workspace)
+      FileUtils.mkdir_p(@dwca_workspace)
+      # check for existing & merge properties???
+      File.write(File.join(get_workspace, "properties.json"),
+                 JSON.dumps(@properties))
+    end
     @dwca_workspace
   end
 
@@ -30,14 +36,14 @@ class Dwca
 
   # Where the DwCA file is stored in local file system
   def get_dwca_path
-    return @dwca_path if @dwca_path
+    ws = get_workspace
     if @dwca_url
       ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
-      path = File.join(@dwca_workspace, "dwca.#{ext}")
+      path = File.join(ws, "dwca.#{ext}")
     else
-      zip = File.join(@dwca_workspace, "dwca.zip")
+      zip = File.join(ws, "dwca.zip")
       return zip if File.exists?(zip)
-      tgz = File.join(@dwca_workspace, "dwca.tgz")
+      tgz = File.join(ws, "dwca.tgz")
       return zip if File.exists?(tgz)
       raise "No DWCA_PATH or DWCA_URL was specified / present"
     end
@@ -80,7 +86,7 @@ class Dwca
   def url_valid?(dwca_url)
     return false unless dwca_url
     # Reuse previous file only if URL matches
-    file_holding_url = File.join(@dwca_workspace, "dwca_url")
+    file_holding_url = File.join(get_workspace, "dwca_url")
     valid = false
     if File.exists?(file_holding_url)
       old_url = File.read(file_holding_url)

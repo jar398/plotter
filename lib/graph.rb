@@ -27,6 +27,26 @@ class Graph
     @query_fn = query_fn
   end
 
+  # This isn't deployed yet but seems a logical service to have
+  # TBD: cache this information
+
+  def resource_id_from_name(name)
+    puts "** Checking graphdb to find id in graphdb for #{name}"
+    # See if the graphdb knows about it already, by name
+    r = run_query(
+        'MATCH (r:Resource {name: "#{name}"})
+         RETURN r.resource_id
+         LIMIT 1')
+    if r && r.include?("data") && r["data"].length > 0
+      id = r["data"][0][0]
+      puts("# Yes! Found resource #{id} by name.")
+    else
+      raise "** No result from resource-by-name query."
+      # id = 9000 + rand(1000)
+      # puts "** Assigning a random one: #{id}"
+    end
+  end
+
   # We also need stage_scp, stage_web if we're doing paged queries!
   # But maybe we're leaving that up to the Paginator class?
 

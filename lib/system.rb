@@ -1,17 +1,16 @@
+# Resource in the sense of repository resource *snapshot* (particular
+# version with respect to page id mappings and so on)
+
 # A system is the topmost description of what's going on.
 # Three kinds of things:
 #   locations  - places on earth where information can be found
 #   resources  - info entities with presences in multiple places
 #   assemblies - decisions as to which locations fill roles
 
-# The workspace contains: (ID is always a 'master id')
-#   resources/ID/dwca/ID.zip            - web cache  - files loaded from web (esp. DwCAs), keyed by master id
-#   resources/ID/dwca/unpacked/foo.tsv  - unpacked dwca area
-#   resources/ID/stage/bar.csv          - keyed by master id
-
 require 'assembly'
 require 'location'
 require 'resource'
+require 'nokogiri'
 
 # Singleton, I suppose...
 
@@ -52,45 +51,24 @@ class System
       @assemblies[tag] = Assembly.new(self, config, tag)
     end
     @locations = {}
-    config["locations"].each do |tag, config|
-      @locations[tag] = Location.new(self, config, tag)
+    config["locations"].each do |loc_tag, config|
+      @locations[loc_tag] = Location.new(self, config, loc_tag)
     end
-    initialize_resources(config["resources"])
+    @dwcas = {}
+    @resource_records = {}
+    @resource_records_by_id = {}
+    config["resources"].each do |record|
+      @resource_records[record["name"]] = record
+      if record.key?("id")
+        @resource_records_by_id[record["id"]] = record
+      end
+    end
   end
 
   def get_workspace
     dir = get_location("workspace").get_path
     FileUtils.mkdir_p(dir)
     dir
-  end
-
-  def initialize_resources(record_list)
-    records = {}   # by name
-    record_list.each do |record|
-      records[record["name"]] = record
-    end
-    more = get_location("prod_publishing").get_resource_records
-    more.each do |record|
-      name = record["name"]
-      if records.key?(name)
-        records[name].merge!(record) do |key, oldval, newval|
-          puts "** Value conflict (#{oldval}->#{newval}) for key #{key}" \
-            unless oldval == newval
-          oldval
-        end
-      else
-        records[name] = record
-      end
-    end
-
-    @resources = {}  # by name
-    @resources_by_id = {}
-    records.each do |name, record|
-      res = Resource.new(self, record)
-      @resources[record["name"]] = res
-      id = record["id"]
-      @resources_by_id[id] = res if id
-    end
   end
 
   def get_assembly(tag)
@@ -103,18 +81,55 @@ class System
     @locations[tag]
   end
 
-  def get_resource(name)
-    unless @resources.include?(name)
-      @resources[name] = Resource.new(self, {"name" => name})
+  # Specially configured resources from config.yml
+  def get_resource_record(name)
+    if @resource_records.include?(name)
+      @resource_records[name]
     end
-    @resources[name]
   end
 
-  # Resource from master resource id (usu. production publishing site)
-
-  def get_resource_from_id(id)
-    return @resources_by_id[id] if @resources_by_id.include?(id)
-    rec = get_location("prod_publishing").get_resource_record_by_id(id)
-    @resources[rec["name"]] = Resource.new(self, rec)
+  # Specially configured resources from config.yml
+  def get_resource_record_by_id(id)
+    if @resource_records_by_id.include?(id)
+      @resource_records_by_id[id]
+    end
   end
+
+@resource_records_by_id
+
+  # If you don't have an opendata landing page (which provides a
+  # uuid), just generate a random number (in hex).
+  def get_dwca(url, landing_page, resource_name)
+    id = landing_page[-8..]     # low order 8 bits of landing page uuid
+    return @dwcas[id] if @dwcas[id]
+    dir = File.join(get_workspace, "dwca", id)
+    FileUtils.mkdir_p(dir)
+    dwca = Dwca.new(dir,
+                    url,
+                    {"url": url,
+                     "landing_page": landing_page,
+                     "resource_name": name,
+                     "id": id})
+    @dwcas[id] = dwca
+    dwca
+  end
+
+  def get_opendata_dwca(opendata_url, resource_name)
+    dwca_url = get_dwca_url(opendata_url)
+    get_dwca(dwca_url, opendata_url, resource_name)
+  end
+
+  # Adapted from harvester app/models/resource/from_open_data.rb.
+  # The HTML file is small; no need to cache it.
+  def get_dwca_url(opendata_url)
+    begin
+      raw = open(opendata_url)
+    rescue Net::ReadTimeout => e
+      fail_with(e)
+    end
+    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
+    html = Nokogiri::HTML(raw)
+    html.css('p.muted a').first['href']
+  end
+
 end

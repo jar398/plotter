@@ -73,7 +73,7 @@ class Concordance
           val1
         end
       else
-        imp = Resource.new(self, record, id)
+        imp = Resource.new(self, record)
         @resources[name] = imp
       end
     end
