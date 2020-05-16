@@ -389,8 +389,8 @@ class Painter
   #   flush    - remove junk created by this test
 
   TESTING_TERM = "http://example.org/numlegs"
-  @testing_resource = 99999
-  @testing_file = "directives.tsv"
+  TESTING_RESOURCE_ID = 9999
+  TESTING_FILE = "directives.tsv"
   TESTING_PAGE_ORIGIN = 500000000
 
   def debug(command, resource = @resource)
@@ -413,7 +413,7 @@ class Painter
     if ENV.key?("DIRECTIVES")
       ENV["DIRECTIVES"]
     else
-      @testing_file
+      TESTING_FILE
     end
   end
 
@@ -563,10 +563,15 @@ class Painter
   # MERGE queries aren't allowed to have LIMIT clauses.
   # Kludge to prevent the cypher service from complaining: // LIMIT
 
-  def populate(resource, page_origin = TESTING_PAGE_ORIGIN)
+  def populate(page_origin = TESTING_PAGE_ORIGIN)
+    return if @populated
+
+    id = get_id
+    unless id == TESTING_RESOURCE_ID
+      raise("Hey, only populate the testing resource #{TESTING_RESOURCE_ID}! Not #{id}") 
+    end
 
     puts "Origin - #{page_origin}"
-    id = get_id
 
     # Create sample hierarchy
     run_query(
@@ -614,18 +619,21 @@ class Painter
     # resource_pk = 'tt_2'
     process_stream([{:page => page_origin+2, :start => 'tt_2'},
                     {:page => page_origin+4, :stop => 'tt_2'}],
-                   resource)
+                   @resource)
+    @populated = true
 
-    show(resource)
+    show(@resource)
   end
 
   # Delete a resource
   def flush(resource = @resource)
     id = get_id
 
-    unless id == @testing_resource
-      raise("Hey, only delete the testing resource!") 
+    unless id == TESTING_RESOURCE_ID
+      raise "Hey, only delete the testing resource #{TESTING_RESOURCE_ID}! Not #{id}"
     end
+
+    @populated = false
 
     # erase(resource) - not really needed
 

@@ -13,8 +13,9 @@ namespace :paint do
   def get_painter
     tag = ENV['CONF'] || raise("Please provide env var CONF")
     id = ENV['ID'] || testing_resource
+    id = id.to_i
     assem = Assembly.assembly(tag)
-    resource = assem.get_resource_by_id(id.to_i)
+    resource = assem.get_resource_by_id(id)
     puts "Resource #{id} on #{tag} is understood as #{resource.name}"
     Painter.new(resource, assem)
   end
