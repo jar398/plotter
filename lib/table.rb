@@ -43,13 +43,8 @@ class Table
                  separator: ',',
                  ignore_lines: 1,
                  claes: nil)
-    properties = Table.positionalize(property_positions) unless properties
     @properties = properties
-    property_positions = Table.depositionalize(properties) unless property_positions
     @property_positions = property_positions     # URI to column index
-    @property_positions.collect do |prop, pos|
-      raise "bogus position" unless pos >= 0
-    end
     @claes = claes
     @location = location    # file basename, or nil
     if not separator
@@ -72,15 +67,27 @@ class Table
   def claes; @claes; end
   def location; @location || File.basename(@path); end
 
-  def get_properties; @properties; end
+  def get_properties
+    return @properties if @properties 
+
+    properties = Table.positionalize(@property_positions) \
+      unless properties
+    property_positions = Table.depositionalize(properties) \
+      unless @property_positions
+    @property_positions.collect do |prop, pos|
+      raise "bogus position" unless pos >= 0
+    end
+
+    @properties
+  end
 
   def is_column(prop)
-    @property_positions.key?(prop)
+    get_property_positions.key?(prop)
   end
 
   # Nil if column not present...
   def column_for_property(prop)
-    @property_positions[prop]
+    get_property_positions[prop]
   end
 
   # List of paths: the the chunks, if split, or the single main csv
@@ -157,7 +164,7 @@ class Table
     return @header if @header
     # Make up column headings based on column properties
     header =
-      @properties.collect do |prop|
+      get_properties.collect do |prop|
         if prop
           STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
           (prop.name || prop.uri.split("/")[-1])

@@ -154,6 +154,7 @@ class Paginator
                       keep_chunks = nil)
     keep_chunks = not(assemble) if keep_chunks == nil
     # Concatenate all the chunks together
+    chunks_dir = csv_path + ".chunks"
     if chunks.size == 0
       FileUtils.touch(csv_path)
       FileUtils.rmdir chunks_dir # should be empty
@@ -171,7 +172,6 @@ class Paginator
       end
       # We could delete the directory and all the files in it, but
       # instead let's leave it around for debugging (or something)
-      chunks_dir = csv_path + ".chunks"
       if not(keep_chunks) &&
          Dir.exist?(chunks_dir) &&
          Dir.entries(chunks_dir).length <= 2

@@ -343,7 +343,7 @@ class Painter
   # Assumes resource is staged
 
   def publish(resource = @resource)
-    url = "#{resource.get_staging_url_prefix}inferences"
+    url = "#{resource.get_staging_url_prefix}inferences/"
     puts "# Staging URL is #{url}"
 
     # only file in directory, for now

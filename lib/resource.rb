@@ -303,7 +303,7 @@ class Resource
   end
 
   def publish_vernaculars(assembly) # slurp
-    url = "#{get_staging_url_prefix}vernaculars.csv"
+    url = "#{get_staging_url_prefix}vernaculars/vernaculars.csv"
     puts "# Staging URL is #{url}"
 
     id_in_graph = get_id_for_graphdb(assembly)
