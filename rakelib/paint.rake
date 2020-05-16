@@ -32,6 +32,11 @@ namespace :paint do
     get_painter.publish
   end
 
+  desc "Branch-paint a resource"
+  task :paint => :prepare do 
+    get_painter.publish
+  end
+
   desc "remove a resource's inferences"
   task :erase do 
     get_painter.erase
