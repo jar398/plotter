@@ -42,6 +42,31 @@ class System
       STDERR.puts "... #{File.size(path)} octets"
       path
     end
+
+    # Load YAML or JSON from the web or from a local file
+    def load_json(specifier)    # file name or URL
+      if specifier.is_a?(URI)
+        puts "# GET #{url}"
+        strng = Net::HTTP.get(url)
+      elsif is_url?(specifier)
+        puts "# Get #{url}"
+        strng = Net::HTTP.get(URI.parse(url))
+      else
+        strng = File.read(path)
+      end
+      if specifier.include?(".yml")
+        YAML.parse(strng)
+      elsif specifier.include?(".json")    # This case might not be needed
+        JSON.parse(strng)
+      else
+        puts "Specifier is not .yaml or .json: #{specifier}"
+        nil
+      end
+    end
+  end
+
+  def is_url?(specifier)
+    specifier.include?("://")
   end
 
   def initialize(config)    # config could have been json serialized
@@ -122,6 +147,7 @@ class System
   # Adapted from harvester app/models/resource/from_open_data.rb.
   # The HTML file is small; no need to cache it.
   def get_dwca_url(opendata_url)
+    raise "No opendata URL provided" unless opendata_url
     begin
       raw = open(opendata_url)
     rescue Net::ReadTimeout => e

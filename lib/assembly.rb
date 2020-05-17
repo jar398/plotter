@@ -71,10 +71,27 @@ class Assembly
     end
   end
 
+  # For ID= on rake command line...
+  def get_resource_by_id(id)
+    get_resource(id_to_name(id))
+  end
+
+  def id_to_name(id)
+    rec = @system.get_resource_record_by_id(id)
+    rec ||= get_location("publishing").get_resource_record_by_id(id)
+    if rec
+      rec["name"]
+    else
+      raise "** No resource with id #{id} in #{@assembly_name}."
+    end
+  end
+
   # apparently this isn't used anywhere?
   def get_resource_record(name)
     record = @system.get_resource_record(name) || {}
+    puts "# got system record #{record}"
     loc = get_location("publishing")
+    puts "# got publishing record #{record}"
     record2 = loc.get_resource_record(name) || {}
     puts "# sys: #{record["name"]} pub: #{record2["id"]}"
     record = record.merge(record2) do |key, oldval, newval|
@@ -105,19 +122,6 @@ class Assembly
     record["qualified_id"] = qid
     resource = Resource.new(self, record)
     resource
-  end
-
-  # For ID= on rake command line...
-  def get_resource_by_id(id)
-    rec = get_location("publishing").get_resource_record_by_id(id)
-    rec ||= @system.get_resource_record_by_id(id)
-    if rec
-      resource_from_record(rec)
-    else
-      # TBD: Query a graphdb by id to get name...
-      raise "** No resource with publishing id #{id} in #{@assembly_name}."\
-            unless record
-    end
   end
 
   # Graphdb and/or publishing id.  They're the same when both exist.

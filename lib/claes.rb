@@ -20,8 +20,6 @@ class Claes < Denotable
     def taxon; named("Taxon"); end
     def vernacular_name; named("VernacularName"); end
 
-    puts "## V name #{Registry.by_name("VernacularName")}.name"
-
   end
 
 end

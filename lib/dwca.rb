@@ -22,8 +22,8 @@ class Dwca
     unless File.exists?(@dwca_workspace)
       FileUtils.mkdir_p(@dwca_workspace)
       # check for existing & merge properties???
-      File.write(File.join(get_workspace, "properties.json"),
-                 JSON.dumps(@properties))
+      path = File.join(get_workspace, "properties.json")
+      File.open(path, 'w') { |file| file.write(JSON.dumps(@properties)) }
     end
     @dwca_workspace
   end

@@ -42,33 +42,44 @@ class Location
     return @config["url"]
   end
 
-  def get_scp_specifier; @config["scp_location"]; end
+  def get_scp_specially; @config["scp_location"]; end
 
-  def load_config(path)
-    if path.end_with?(".yml")
-      hash = YAML.load(File.read(path))
-    elsif path.end_with?(".json")
-      hash = JSON.parse(File.read(path))
+  def load_resource_records
+    if @config.include?("url")
+      url = "#{get_url}resources.json?per_page=10000"
+      puts "# GETting #{url}"
+      blob = Net::HTTP.get(URI.parse(url))
+      hash = JSON.parse(blob)
     else
-      puts "** No resource records at #{path}"
-      return {}
+      raise "Expected 'url' property for @{@name}"
     end
-    hash
+  end
+
+  def load_resource_records(cachep = false)   # Returns an array
+    if @config.key?("resource_records")
+      when_cached = @config["resource_records"]    # maybe nil
+      unless File.exists?(when_cached)
+        url = "#{get_url}resources.json?per_page=10000"
+        copy_from_internet(url, when_cached)
+      end
+      System.load_json(when_cached)
+    else
+      url = "#{get_url}resources.json?per_page=10000"
+      System.load_json(url)
+    end
+  end
+
+  def flush_resource_records_cache
+    if @config.key?("resource_records")
+      path = @config["resource_records"]
+      puts "# Attempting deletion of #{path}"
+      FileUtils.rm_rf(path)
+    end
   end
 
   def get_resource_records   # Returns an array
     return @records if @records
-    if @config.include?("resource_records")
-      path = @config["resource_records"]
-      hash = load_config(path)
-    elsif @config.include?("url")
-      url = "#{get_url}resources.json?per_page=10000"
-      puts "GET #{url}"
-      blob = Net::HTTP.get(URI.parse(url))
-      hash = JSON.parse(blob)
-    else
-      hash = load_config(location.get_path)
-    end
+    hash = load_resource_records
     @records_by_name = {}
     @records_by_id = {}
     hash["resources"].each do |r|

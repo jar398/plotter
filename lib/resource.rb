@@ -65,7 +65,11 @@ class Resource
   # Need one of dwca_path (local), dwca_url (remote opendata)
 
   def get_dwca
-    @instance.get_opendata_dwca(@config["landing_page"], name)
+    opendata_url = @config["landing_page"]
+    unless opendata_url
+      raise "No landing_page provided for resource #{name} (#{get_qualified_id})"
+    end
+    @instance.get_opendata_dwca(opendata_url, name)
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
