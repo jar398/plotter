@@ -1,17 +1,17 @@
 
 lib = File.expand_path("../lib", __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "reaper/version"
+require "plotter/version"
 
 Gem::Specification.new do |spec|
-  spec.name          = "reaper"
-  spec.version       = Reaper::VERSION
+  spec.name          = "plotter"
+  spec.version       = Plotter::VERSION
   spec.authors       = ["Jonathan A. Rees"]
   spec.email         = ["jar398@mumble.net"]
 
   spec.summary       = %q{This is a short summary, because RubyGems requires one.}
   spec.description   = %q{To do: Write a longer description or delete this line.}
-  spec.homepage      = "https://github.com/jar398/reaper"
+  spec.homepage      = "https://github.com/jar398/plotter"
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
@@ -19,8 +19,8 @@ Gem::Specification.new do |spec|
   # if spec.respond_to?(:metadata)
   #   spec.metadata["allowed_push_host"] = "TODO: Set to 'http://mygemserver.com'"
   #   spec.metadata["homepage_uri"] = spec.homepage
-  #   spec.metadata["source_code_uri"] = "https://github.com/jar398/reaper/"
-  #   spec.metadata["changelog_uri"] = "https://github.com/jar398/reaper/commits/"
+  #   spec.metadata["source_code_uri"] = "https://github.com/jar398/plotter/"
+  #   spec.metadata["changelog_uri"] = "https://github.com/jar398/plotter/commits/"
   # else
   #   raise "RubyGems 2.0 or newer is required to protect against " \
   #     "public gem pushes."

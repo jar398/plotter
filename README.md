@@ -1,11 +1,11 @@
-# reaper
+# 'Plotter' - make a graph
 
 EOL related utilities
 
 ## Workspace structure
 
 Workspace root comes from config.yml (via system.rb).  Currently set
-to /home/jar/.reaper_workspace.
+to /home/jar/.plotter_workspace.
 
 - (workspace root)/
    - dwca/
