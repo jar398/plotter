@@ -44,21 +44,22 @@ class Location
 
   def get_scp_specifier; @config["scp_location"]; end
 
-  # Stored file is JSON mapping id to resource record
+  # Stored file looks like {"resources":[{"id":830, ...}, ...], ...}
   def load_resource_records(cachep = false)   # Returns an array
     if @config.key?("resource_records")
       when_cached = @config["resource_records"]    # maybe nil
       unless File.exists?(when_cached)
         url = "#{get_url}resources.json?per_page=10000"
-        copy_from_internet(url, when_cached)
+        System.copy_from_internet(url, when_cached)
       end
       obj = System.load_json(when_cached)
     else
       url = "#{get_url}resources.json?per_page=10000"
       obj = System.load_json(url)
     end
-    puts "Read #{obj.length} resource records"
-    obj
+    resources = obj["resources"]
+    puts "Read #{resources.length} resource records"
+    resources
   end
 
   def flush_resource_records_cache
@@ -72,13 +73,12 @@ class Location
   # Array -> nil (for side effects)
   def get_resource_records
     return if @records_by_name
-    id_to_record = load_resource_records
+    records = load_resource_records
     @records_by_name = {}
     @records_by_id = {}
-    puts "#{id_to_record.keys[0..10]}"
-    id_to_record.each do |id_as_string, r|
+    records.each do |r|
       id = r["id"]
-      puts "# saw a resource with id 40" if id == 40
+      # puts "# saw a resource with id 40" if id == 40
       name = r["name"]
       if @records_by_name.include?(name)
         # Collision.  Keep the one with higher id.

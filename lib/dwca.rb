@@ -144,13 +144,14 @@ class Dwca
     if File.exist?(File.join(dir, "meta.xml"))
       dir
     else
+      # Which directories contain meta.xml files?
       winners = Dir.children(dir).filter do |child|
         cpath = File.join(dir, child)
         (File.directory?(cpath) and
          File.exist?(File.join(cpath, "meta.xml")))
       end
       raise("Cannot find meta.xml in #{dir}") unless winners.size == 1
-      winners[0]
+      File.join(dir, winners[0])
     end
   end
 
