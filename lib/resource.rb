@@ -205,7 +205,7 @@ class Resource
 
   # Copy the staging/TAG.PID.RID/ directory out to the staging host.
 
-  def stage(assembly)
+  def stage(instance = nil)
     copy_to_stage("vernaculars")
   end
 
@@ -358,8 +358,8 @@ class Resource
         page_id_map[row[taxon_id_column]] = row[page_id_column].to_i
       end
     else
-      repository_url = get_url_for_repository(assembly)
-      id_in_repository = assembly.repo_id_for_resource(name)
+      repository_url = get_url_for_repository
+      id_in_repository = @instance.repo_id_for_resource(name)
       STDERR.puts "Getting page ids for #{id_in_repository} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
@@ -413,8 +413,8 @@ class Resource
     @page_id_map
   end
 
-  def get_url_for_repository(assembly)
-    repository_url = assembly.get_location("repository").get_url
+  def get_url_for_repository
+    repository_url = @instance.get_location("repository").get_url
     repository_url += "/" unless repository_url.end_with?("/")
     repository_url
   end

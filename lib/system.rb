@@ -4,8 +4,9 @@
 # A system is the topmost description of what's going on.
 # Three kinds of things:
 #   locations  - places on earth where information can be found
-#   resources  - info entities with presences in multiple places
-#   assemblies - decisions as to which locations fill roles
+#   resources  - info entities with presences in multiple locations
+#   instances  - publishing + repository locations
+#   assemblies - pairing of an instance with a graphdb
 
 require 'assembly'
 require 'location'
@@ -71,15 +72,23 @@ class System
 
   def initialize(config)    # config could have been json serialized
     @config = config
-    @assemblies = {}
-    config["assemblies"].each do |tag, config|
-      @assemblies[tag] = Assembly.new(self, config, tag)
-    end
+
     @locations = {}
     config["locations"].each do |loc_tag, config|
       @locations[loc_tag] = Location.new(self, config, loc_tag)
     end
     @dwcas = {}
+
+    @instances = {}
+    config["instances"].each do |tag, config|
+      @instances[tag] = Instance.new(self, config, tag)
+    end
+
+    @assemblies = {}
+    config["assemblies"].each do |tag, config|
+      @assemblies[tag] = Assembly.new(self, config, tag)
+    end
+
     @resource_records = {}
     @resource_records_by_id = {}
     config["resources"].each do |record|
@@ -102,29 +111,31 @@ class System
     a
   end
 
+  def get_instance(tag)
+    a = @instances[tag]
+    raise "No such instance: #{tag}" unless a
+    a
+  end
+
   def get_location(tag)
     @locations[tag]
   end
 
-  # Specially configured resources from config.yml
+  # Specially configured system resource records from config.yml
   def get_resource_record(name)
     if @resource_records.include?(name)
       @resource_records[name]
     end
   end
-
-  # Specially configured resources from config.yml
   def get_resource_record_by_id(id)
     if @resource_records_by_id.include?(id)
       @resource_records_by_id[id]
     end
   end
 
-@resource_records_by_id
-
   # If you don't have an opendata landing page (which provides a
   # uuid), just generate a random number (in hex).
-  def get_dwca(url, landing_page, resource_name)
+  def get_dwca(url, landing_page, resource_name = nil)
     id = landing_page[-8..]     # low order 8 bits of landing page uuid
     return @dwcas[id] if @dwcas[id]
     dir = File.join(get_workspace, "dwca", id)
@@ -139,7 +150,7 @@ class System
     dwca
   end
 
-  def get_opendata_dwca(opendata_url, resource_name)
+  def get_opendata_dwca(opendata_url, resource_name = nil)
     dwca_url = get_dwca_url(opendata_url)
     get_dwca(dwca_url, opendata_url, resource_name)
   end

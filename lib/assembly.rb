@@ -5,17 +5,15 @@
 #   possibly some local files (e.g. config.yml).
 
 # An assembly selects:
-#   a content repository, used for page id mappings
-#   (optional) a publishing site, used for UI on graphdb
-#   local workspace for converting dwca to graphdb
-#     [keyed by name of page id mapping source??]
-#   a staging server, populated from the local workspace
+#   an instance (content + publishing + staging)
 #   a graphdb (neo4j triple store)
 
 require 'system'
 require 'graph'
 require 'open-uri'
 require 'net/http'
+
+require 'instance'
 
 class Assembly
 
@@ -27,15 +25,10 @@ class Assembly
     @system = system
     @config = config or {}
     @assembly_name = tag
-    @instance_name = tag
+    @instance = system.get_instance(@config["instance"])
   end
 
   def name; @assembly_name; end
-
-  def instance_name
-    # FRAGILE KLUDGE, fix by establishing instances as first-class
-    @config["publishing"].split("_")[0]
-  end
 
   def get_location(role)
     if @config.include?(role)
@@ -56,72 +49,8 @@ class Assembly
     @system.get_opendata_dwca(landing_url, resource_name)
   end
 
-  def get_staging_location    # ????
-    get_location("staging")
-  end
-
   def get_graph
     get_location("graphdb").get_graph
-  end
-
-  def get_resource(name)
-    record = get_resource_record(name)
-    if record
-      resource_from_record(record)
-    end
-  end
-
-  # For ID= on rake command line...
-  def get_resource_by_id(id)
-    get_resource(id_to_name(id))
-  end
-
-  def id_to_name(id)
-    rec = @system.get_resource_record_by_id(id)
-    rec ||= get_location("publishing").get_resource_record_by_id(id)
-    if rec
-      rec["name"]
-    else
-      raise "** No resource with id #{id} in #{@assembly_name}."
-    end
-  end
-
-  # apparently this isn't used anywhere?
-  def get_resource_record(name)
-    record = @system.get_resource_record(name) || {}
-    puts "# got system record #{record}"
-    loc = get_location("publishing")
-    puts "# got publishing record #{record}"
-    record2 = loc.get_resource_record(name) || {}
-    puts "# sys: #{record["name"]} pub: #{record2["id"]}"
-    record = record.merge(record2) do |key, oldval, newval|
-      if oldval != newval
-        puts "** Conflict over value of resource property #{key}"
-        puts "** Old = #{oldval}, new = #{newval}.  Keeping old"
-        oldval
-      else
-        newval
-      end
-    end
-    unless record.key?("name")
-      # This is assemblyish code, not instance code (an instance
-      # has no graph)... deal
-      gid = get_graph.resource_id_from_name(name)
-      {"name" => name,
-       "id" => gid,
-       "instance" => @assembly_name}
-    end
-  end
-
-  def resource_from_record(record)
-    pid = record["id"]
-    # TBD: generate random publishing id if none found in config...
-    rid = record["repository_id"]
-    suffix = (rid ? ".#{rid}" : "")
-    qid = "#{@instance_name}.#{pid}suffix"
-    record["qualified_id"] = qid
-    resource = Resource.new(self, record)
-    resource
   end
 
   # Graphdb and/or publishing id.  They're the same when both exist.

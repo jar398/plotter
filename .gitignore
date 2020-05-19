@@ -9,3 +9,4 @@
 *.token
 Gemfile.lock
 config/config.yml
+config/*-publishing
