@@ -22,8 +22,10 @@ class Dwca
     unless File.exists?(@dwca_workspace)
       FileUtils.mkdir_p(@dwca_workspace)
       # check for existing & merge properties???
-      path = File.join(get_workspace, "properties.json")
-      File.open(path, 'w') { |file| file.write(JSON.dumps(@properties)) }
+    end
+    path = File.join(@dwca_workspace, "properties.json")
+    unless File.exists?(path)    # ??
+      File.open(path, 'w') { |file| file.write(JSON.pretty_generate(@properties)) }
     end
     @dwca_workspace
   end
@@ -182,7 +184,8 @@ class Dwca
       positions = parse_fields(table_element)
       sep = table_element['fieldsTerminatedBy']
       ig = table_element['ignoreHeaderLines']
-      Table.new(property_positions: positions,
+      raise "No fields ??" unless positions.length > 0
+      Table.new(property_positions: positions,    # Property -> position hash
                 location: location,
                 path: File.join(get_unpacked_loc, location),
                 separator: sep,

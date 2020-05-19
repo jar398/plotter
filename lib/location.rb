@@ -42,19 +42,9 @@ class Location
     return @config["url"]
   end
 
-  def get_scp_specially; @config["scp_location"]; end
+  def get_scp_specifier; @config["scp_location"]; end
 
-  def load_resource_records
-    if @config.include?("url")
-      url = "#{get_url}resources.json?per_page=10000"
-      puts "# GETting #{url}"
-      blob = Net::HTTP.get(URI.parse(url))
-      hash = JSON.parse(blob)
-    else
-      raise "Expected 'url' property for @{@name}"
-    end
-  end
-
+  # Stored file is JSON mapping id to resource record
   def load_resource_records(cachep = false)   # Returns an array
     if @config.key?("resource_records")
       when_cached = @config["resource_records"]    # maybe nil
@@ -62,11 +52,13 @@ class Location
         url = "#{get_url}resources.json?per_page=10000"
         copy_from_internet(url, when_cached)
       end
-      System.load_json(when_cached)
+      obj = System.load_json(when_cached)
     else
       url = "#{get_url}resources.json?per_page=10000"
-      System.load_json(url)
+      obj = System.load_json(url)
     end
+    puts "Read #{obj.length} resource records"
+    obj
   end
 
   def flush_resource_records_cache
@@ -77,26 +69,29 @@ class Location
     end
   end
 
-  def get_resource_records   # Returns an array
-    return @records if @records
-    hash = load_resource_records
+  # Array -> nil (for side effects)
+  def get_resource_records
+    return if @records_by_name
+    id_to_record = load_resource_records
     @records_by_name = {}
     @records_by_id = {}
-    hash["resources"].each do |r|
-      name = r["name"]
+    puts "#{id_to_record.keys[0..10]}"
+    id_to_record.each do |id_as_string, r|
       id = r["id"]
+      puts "# saw a resource with id 40" if id == 40
+      name = r["name"]
       if @records_by_name.include?(name)
+        # Collision.  Keep the one with higher id.
+        # OK for repository, not OK for publishing.
         other_id = @records_by_name[name]["id"]
         r = nil if other_id > id
       end
       if r
-        puts "# got 40" if id == 40
         @records_by_id[id] = r
         @records_by_name[name] = r
       end
     end
-    @records = @records_by_name.values
-    @records
+    puts "#{@records_by_id.length} resource ids, #{@records_by_name.length} resource names"
   end
 
   def get_resource_record(name)

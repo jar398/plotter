@@ -46,6 +46,7 @@ class System
 
     # Load YAML or JSON from the web or from a local file
     def load_json(specifier)    # file name or URL
+      # First get the literal string
       if specifier.is_a?(URI)
         puts "# GET #{url}"
         strng = Net::HTTP.get(url)
@@ -53,8 +54,9 @@ class System
         puts "# Get #{url}"
         strng = Net::HTTP.get(URI.parse(url))
       else
-        strng = File.read(path)
+        strng = File.read(specifier)
       end
+      # Now parse the string to get JSON-like data
       if specifier.include?(".yml")
         YAML.parse(strng)
       elsif specifier.include?(".json")    # This case might not be needed
@@ -64,10 +66,10 @@ class System
         nil
       end
     end
-  end
 
-  def is_url?(specifier)
-    specifier.include?("://")
+    def is_url?(specifier)
+      specifier.include?("://")
+    end
   end
 
   def initialize(config)    # config could have been json serialized
@@ -144,7 +146,7 @@ class System
                     url,
                     {"url": url,
                      "landing_page": landing_page,
-                     "resource_name": name,
+                     "resource_name": resource_name,
                      "id": id})
     @dwcas[id] = dwca
     dwca

@@ -15,7 +15,7 @@
 
 require 'system'
 
-class instance
+class Instance
 
   def self.instance(tag)
     System.system().get_instance(tag)
@@ -41,7 +41,7 @@ class instance
   end
 
   def get_workspace        # For all purposes
-    @system.get_workspace
+    File.join(@system.get_workspace, @name)
   end
 
   def get_opendata_dwca(landing_url, resource_name)
@@ -77,15 +77,12 @@ class instance
   # apparently this isn't used anywhere?
   def get_resource_record(name)
     record = @system.get_resource_record(name) || {}
-    puts "# got system record #{record}"
     loc = get_location("publishing")
-    puts "# got publishing record #{record}"
     record2 = loc.get_resource_record(name) || {}
-    puts "# sys: #{record["name"]} pub: #{record2["id"]}"
     record = record.merge(record2) do |key, oldval, newval|
       if oldval != newval
-        puts "** Conflict over value of resource property #{key}"
-        puts "** Old = #{oldval}, new = #{newval}.  Keeping old"
+        puts "** Conflict over value of resource property #{key}."
+        puts "** Keeping configured = #{oldval}, ignoring publishing = #{newval}."
         oldval
       else
         newval

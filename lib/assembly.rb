@@ -30,6 +30,10 @@ class Assembly
 
   def name; @assembly_name; end
 
+  def get_instance
+    @system.get_instance(@config["instance"])
+  end
+
   def get_location(role)
     if @config.include?(role)
       loc = @system.get_location(@config[role])

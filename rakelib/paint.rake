@@ -15,7 +15,7 @@ namespace :paint do
     id = ENV['ID'] || testing_resource
     id = id.to_i
     assem = Assembly.assembly(tag)
-    resource = assem.get_resource_by_id(id)
+    resource = assem.get_instance.get_resource_by_id(id)
     puts "Resource #{id} on #{tag} is understood as #{resource.name}"
     Painter.new(resource, assem)
   end

@@ -14,11 +14,12 @@
 
 class Table
   class << self
-    def positionalize(position_map)  # position_map : property -> position
-      props = Array.new(position_map.values.max + 1)
-      position_map.each {|prop, pos| props[pos] = prop}
-      puts "# Column properties: #{props.collect{|prop|prop.name}}"
-      props
+    def to_property_vector(position_map)  # position_map : property -> position
+      prop_vec = Array.new(position_map.values.max + 1)
+      position_map.each {|prop, pos| prop_vec[pos] = prop}
+      puts "# Column properties: #{prop_vec.collect{|prop|prop.name}}"
+      raise "No fields ??" unless prop_vec.length > 0
+      prop_vec
     end
 
     def depositionalize(position_array)
@@ -29,11 +30,12 @@ class Table
         prop.name
         m[prop] = i
       end
+      raise "No fields ??" unless m.length > 0
       m
     end
   end
 
-  def initialize(properties: nil,  # array of Property
+  def initialize(property_vector: nil,  # array of Property
                  property_positions: nil,  # maps Property to column number
                  header: nil,
                  location: nil,
@@ -43,8 +45,10 @@ class Table
                  separator: ',',
                  ignore_lines: 1,
                  claes: nil)
-    @properties = properties
-    @property_positions = property_positions     # URI to column index
+    # Provide either one of the following
+    @property_vector = property_vector
+    @property_positions = property_positions    # Property to column position
+
     @claes = claes
     @location = location    # file basename, or nil
     if not separator
@@ -67,18 +71,20 @@ class Table
   def claes; @claes; end
   def location; @location || File.basename(@path); end
 
-  def get_properties
-    return @properties if @properties 
+  # @property_vector is an array of Property objects
 
-    properties = Table.positionalize(@property_positions) \
-      unless properties
-    property_positions = Table.depositionalize(properties) \
-      unless @property_positions
-    @property_positions.collect do |prop, pos|
-      raise "bogus position" unless pos >= 0
-    end
+  def get_property_vector
+    return @property_vector if @property_vector 
+    @property_vector = Table.to_property_vector(@property_positions)
+    @property_vector
+  end
 
-    @properties
+  # @property_positions is a hash from Property to position
+
+  def get_property_positions
+    return @property_positions if @property_positions
+    @property_positions = Table.depositionalize(@property_vector)
+    @property_positions
   end
 
   def is_column(prop)
@@ -164,7 +170,7 @@ class Table
     return @header if @header
     # Make up column headings based on column properties
     header =
-      get_properties.collect do |prop|
+      get_property_vector.collect do |prop|
         if prop
           STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
           (prop.name || prop.uri.split("/")[-1])

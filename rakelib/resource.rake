@@ -8,13 +8,13 @@ namespace :resource do
   end
 
   def get_resource
-    tag = ENV['CONF'] || raise("Please provide env var CONF")
     id = ENV['ID'] || raise("Please provide env var ID")
-    Assembly.assembly(tag).get_resource_by_id(ENV['ID'].to_i)
+    tag = ENV['CONF'] || raise("Please provide env var CONF")
+    get_assembly.get_instance.get_resource_by_id(id.to_i)
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
-  task :harvest do 
+  task :prepare do 
     get_resource.harvest
     get_resource.stage
   end

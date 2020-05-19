@@ -28,7 +28,7 @@ class Resource
     # TBD: generate random publishing id if none found in config...
     rid = @config["repository_id"]
     suffix = (rid ? ".#{rid}" : "")
-    qid = "#{@instance.instance_name}.#{pid}#{suffix}"
+    qid = "#{@instance.name}.#{pid}#{suffix}"
     @config["qualified_id"] = qid
     qid
   end
@@ -104,7 +104,9 @@ class Resource
 
   def harvest_table(vt, props)
     fetch                       # Get the DwCA and unpack it
-    puts "# Found these columns:\n  #{vt.get_properties.collect{|p|(p ? p.name : '?')}}"
+    props = vt.get_property_vector    # array of Property objects
+    raise "No properties (columns)" unless props
+    puts "# Found these columns:\n  #{props.collect{|p|(p ? p.name : '?')}}"
 
     # For resource 40, input columns are vernacularName, language, taxonID
 
@@ -132,11 +134,13 @@ class Resource
     end
     puts "# Input position for each output position: #{mapping.collect{|x,y|y}}"
 
-    dir = "vernaculars"
+    # Staging directory for this kind of task
+    dir = File.join(get_staging_dir, "vernaculars")
+    FileUtils.mkdir_p(dir)
     fname = "vernaculars.csv"
-    out_table = Table.new(properties: props,
+    out_table = Table.new(property_vector: props,
                           location: fname,
-                          path: File.join(get_staging_dir, dir, fname))
+                          path: File.join(dir, fname))
 
     counter = 0
     csv_in = vt.open_csv_in
