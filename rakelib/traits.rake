@@ -7,19 +7,15 @@ namespace :traits do
 
   desc "Dump traits, either for entire hierarchy or a subtree"
   task :dump do
-    system = System.system(ENV['CONF'])
-
-    server = ENV['SERVER'] || system.get_publishing_url
-    token = ENV['TOKEN'] || system.get_publishing_token
-    query_fn = Graph.via_http(server, token)
+    assembly = Assembly.assembly(ENV['CONF'])
 
     clade = ENV['ID']           # page id, possibly nil
     tempdir = ENV['TEMP'] ||    # temp dir = where to put intermediate csv files
-              File.join(system.get_workspace_root, "dump-#{clade || 'all'}")
+              File.join(assembly.get_workspace, "dump-#{clade || 'all'}")
     FileUtils.mkdir_p(tempdir)
     chunksize = ENV['CHUNK']    # possibly nil
-    dest = ENV['ZIP'] || system.get_workspace_root
-    TraitsDumper.new(clade, tempdir, chunksize, query_fn).dump_traits(dest)
+    dest = ENV['ZIP'] || assembly.get_workspace
+    TraitsDumper.new(clade, tempdir, chunksize, assembly.get_graph).dump_traits(dest)
 
   end
 

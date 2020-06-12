@@ -47,6 +47,7 @@ class Location
   # Stored file looks like {"resources":[{"id":830, ...}, ...], ...}
   def load_resource_records(cachep = false)   # Returns an array
     if @config.key?("resource_records")
+      # Ideally this would be cached in the instance workspace
       when_cached = @config["resource_records"]    # maybe nil
       unless File.exists?(when_cached)
         url = "#{get_url}resources.json?per_page=10000"

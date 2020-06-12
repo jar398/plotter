@@ -63,22 +63,6 @@ require 'graph'
 # the session, however, resides in files in the file system.
 
 class TraitsDumper
-  # This method is suitable for invocation from the shell via
-  #  ruby -r "./lib/traits_dumper.rb" -e "TraitsDumper.main"
-  # Obsolete - use `rake traits:dump` instead.
-  def self.main
-    server = ENV['SERVER'] || "https://eol.org/"
-    token = ENV['TOKEN'] || STDERR.puts("** No TOKEN provided")
-    query_fn = Graph.via_http(server, token)
-
-    clade = ENV['ID']           # possibly nil
-    tempdir = ENV['TEMP']       # temp dir = where to put intermediate csv files
-    chunksize = ENV['CHUNK']    # possibly nil
-    dest = ENV['ZIP']
-    new(clade, tempdir, chunksize, query_fn).dump_traits(dest)
-  end
-
-  # This method is suitable for use from a rake command.
 
   def self.dump_clade(clade_page_id, tempdir, chunksize, query_fn, dest)
     new(clade_page_id, tempdir, chunksize, query_fn).dump_traits(dest)
@@ -92,12 +76,12 @@ class TraitsDumper
   # use neography, or the EOL web API, or any other method for
   # executing CQL queries.
 
-  def initialize(clade_page_id, tempdir, chunksize, query_fn)
+  def initialize(clade_page_id, tempdir, chunksize, graph)
     @clade = (clade_page_id ? Integer(clade_page_id) : nil)
     @tempdir = tempdir || File.join("/tmp", default_basename(@clade))
     @chunksize = chunksize.to_i if chunksize
     # If clade_page_id is nil, that means do not filter by clade
-    @graph = Graph.new(query_fn)
+    @graph = graph
   end
 
   # dest is name of zip file to be written, or nil for default
