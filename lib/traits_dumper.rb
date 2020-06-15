@@ -318,6 +318,7 @@ class TraitsDumper
     inferred_keys = ["page_id", "inferred_trait"]
     inferred_query = 
        "MATCH (page:Page)-[:inferred_trait]->(trait:Trait)
+              #{transitive_closure_part}
         RETURN page.page_id AS page_id, trait.eol_pk AS trait"
     supervise_query(inferred_query, inferred_keys, filename)
   end

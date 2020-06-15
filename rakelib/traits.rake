@@ -13,8 +13,12 @@ namespace :traits do
     tempdir = ENV['TEMP'] ||    # temp dir = where to put intermediate csv files
               File.join(assembly.get_workspace, "dump-#{clade || 'all'}")
     FileUtils.mkdir_p(tempdir)
-    chunksize = ENV['CHUNK']    # possibly nil
-    dest = ENV['ZIP'] || assembly.get_workspace
+    if ENV.key?('CHUNK')
+      chunksize = ENV['CHUNK']    # possibly nil
+    else
+      chunksize = 10000
+    end
+    dest = ENV['ZIP'] || assembly.get_workspace    # ?
     TraitsDumper.new(clade, tempdir, chunksize, assembly.get_graph).dump_traits(dest)
 
   end

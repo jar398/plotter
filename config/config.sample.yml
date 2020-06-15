@@ -1,25 +1,34 @@
-# graphdb is where we'll be storing things
-# publishing is a source of graphdb identifiers
+# graphdb is where we will be storing things
+# publishing is mostly a source of resource identifiers
 # repository is for page id maps
 
 assemblies:
-  testp:
-    graphdb: test_graphdb
-    publishing: prod_publishing
-    repository: prod_repository
-
   test:
     graphdb: test_graphdb
-    publishing: beta_publishing    # links graph to repository
-    repository: beta_repository
+    instance: beta
+
+  testp:
+    graphdb: test_graphdb
+    instance: prod
 
   beta:
     graphdb: beta_graphdb
+    instance: beta
+
+  prod:
+    graphdb: prod_graphdb
+    instance: prod
+
+instances:
+  test:
+    publishing: test_publishing
+    repository: test_repository
+
+  beta:
     publishing: beta_publishing
     repository: beta_repository
 
   prod:
-    graphdb: prod_graphdb
     publishing: prod_publishing
     repository: prod_repository
 
@@ -36,7 +45,7 @@ locations:
     url: 'http://varela.csail.mit.edu/~jar/eol/staging/'
 
   concordance:
-    path: 'config/resources.json'
+    path: 'config/concordance.json'
 
   beta_graphdb:
     via_api: beta_publishing
@@ -47,6 +56,7 @@ locations:
     token_file: 'beta.token'
     update_token_file: 'beta-admin.token'
     repository: beta_repository
+    resource_records: 'config/beta-publishing/resources.json'
 
   beta_repository:
     url: 'https://beta_repo.eol.org/'
@@ -66,6 +76,9 @@ locations:
     url: 'https://content.eol.org/'
 
 resources:
+- name: 'EOL Dynamic Hierarchy 0.9'
+  landing_page: https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/1b375a39-4739-45ba-87cd-328bdd50ec34
+
 - name: 'EOL Dynamic Hierarchy 1.1'
   landing_page: https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/00adb47b-57ed-4f6b-8f66-83bfdb5120e8
 
