@@ -7,24 +7,10 @@
 #   terms.csv    - one row per Term node
 #   inferred.csv - one row per inferred_trait relationship
 #
-# This script can run in at least two different modes:
-#  1. as a rake command (see lib/tasks/dump_traits.rake).  The 
+# This script run as a rake command (see rakelib/dump_traits.rake).  The 
 #     graphdb is accessed directly, using neography.
-#  2. directly from the shell, outside the rails / rake context.
-#     The graphdb is accessed using the web API (over HTTP).
-# The second mode is convenient because you can run it on machines
-# where rails isn't installed.
 #
-# Parameters:
-#   page id (ID) - if provided, the trait and metadata records are
-#      restricted to those for taxa descending from the specified 
-#      taxon.
-#   chunk size (CHUNK) - number of rows to fetch per query.  20000
-#      seems to be an OK value for this.
-#   tempdir (TEMP) - where to put intermediate files for construction 
-#      of the zip file.
-#   destination (ZIP) - where to put the zip file.  Default is
-#      a name that includes the ID and the month it was created.
+# See documentation in doc/trait-bank-dumps.md.
 #
 # Parameters for API mode only:
 #   server (SERVER) - base URL for the server to contact.  Should
