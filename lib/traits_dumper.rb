@@ -66,7 +66,6 @@ class TraitsDumper
     @clade = (clade_page_id ? Integer(clade_page_id) : nil)
     @tempdir = tempdir || File.join("/tmp", default_basename(@clade))
     @chunksize = chunksize.to_i if chunksize
-    # If clade_page_id is nil, that means do not filter by clade
     @graph = graph
   end
 
@@ -418,7 +417,7 @@ class TraitsDumper
       FileUtils.mv parts[0], path
     else
       temp = path + ".new"
-      tails = parts.drop(1).map { |path| "tail +2 #{path}" }
+      tails = parts.drop(1).map { |path| "tail -n +2 #{path}" }
       more = tails.join(';')
       command = "(cat #{parts[0]}; #{more}) >#{temp}"
       system command

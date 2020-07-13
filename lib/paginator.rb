@@ -164,7 +164,7 @@ class Paginator
     else
       if assemble
         temp = csv_path + ".new"
-        tails = chunks.drop(1).map { |path| "tail +2 #{path}" }
+        tails = chunks.drop(1).map { |path| "tail -n +2 #{path}" }
         more = tails.join(' && ')
         command = "(cat #{chunks[0]}; #{more}) >#{temp}"
         system command
