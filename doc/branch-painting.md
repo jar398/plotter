@@ -1,5 +1,11 @@
 # Branch painting
 
+TL;DR: use `rake paint:paint CONFIG=x ID=y` where x is `beta` or
+`prod` and y is the id of the resource according to neo4j (and the publishing
+database).  E.g.
+
+    rake paint:paint CONFIG=beta ID=640
+
 'Branch painting' is the process of adding of trait assertions to the
 graph database that are inferred by propagating selected traits through the
 taxonomic hierarchy.  An inferred trait assertion is represented as
@@ -48,22 +54,15 @@ implements a suite of operations related to branch painting.
   (a directive is a 'start' or 'stop' metadata node)
 
 The choice of command, and any parameters, are communicated via
-shell variables.  Shell variables can be set using `export` or
-using the bash syntax `variable=value command`.
+the `rake` syntax `variable=value command`.
 
 Branch painting is invoked using the `paint` family of rake commands.
-TL;DR: use `rake paint:paint CONFIG=x ID=y` where x is `beta` or
-`prod` and y is the id of the resource according to neo4j (and the publishing
-database).
+Applicable parameters are:
 
-The shell variables / parameters are:
-
-* `CONFIG`  - tag identifying configuration block in `config/config.yml`
+* `CONFIG`  - tag identifying configuration block within `config/config.yml`
 * `ID`   - resource id (relative to publishing site)
 
-    rake paint:paint CONFIG=beta ID=640
-
-The ordinary sequence of operations would be:
+The complete sequence of operations, if one is being very careful, would be:
 
  1. Set up the plotter config file
      1. Obtain a production admin token using 
