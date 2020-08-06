@@ -51,54 +51,54 @@ The choice of command, and any parameters, are communicated via
 shell variables.  Shell variables can be set using `export` or
 using the bash syntax `variable=value command`.
 
+Branch painting is invoked using the `paint` family of rake commands.
+TL;DR: use `rake paint:paint CONFIG=x ID=y` where x is `beta` or
+`prod` and y is the id of the resource according to neo4j (and the publishing
+database).
+
 The shell variables / parameters are:
 
-* `COMMAND` - a command, see list above
-* `SERVER` - the http server for an EOL web app instance, used for its
-  cypher service.  E.g. `https://eol.org/`.  Default is `https://beta.eol.org/`.
-* `TOKEN` - API token to be used with `SERVER`
-* `RESOURCE` - the resource id of the resource to be painted
-* `STAGE_SCP_LOCATION` - remote staging directory, written in a form to be
-    used with an `scp`
-    command, where temporary files are to be stored; looks like
-    `hostname:directory/` 
-* `STAGE_WEB_LOCATION`  - the same directory, written in a form for
-    access via HTTP; looks like `http://hostname/directory/`
+* `CONFIG`  - tag identifying configuration block in `config/config.yml`
+* `ID`   - resource id (relative to publishing site)
 
-For example:
-
-    export SERVER="https://beta.eol.org/"
-    export TOKEN=`cat ~/Sync/eol/beta.token`
-    export STAGE_SCP_LOCATION="varela:public_html/tmp/"
-    export STAGE_WEB_LOCATION="http://varela.csail.mit.edu/~jar/tmp/"
-
-    ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
+    rake paint:paint CONFIG=beta ID=640
 
 The ordinary sequence of operations would be:
 
- 1. Obtain a production admin token using https://eol.org/services/authenticate
-    (see API documentation)
+ 1. Set up the plotter config file
+     1. Obtain a production admin token using 
+        `https://beta.eol.org/services/authenticate` or
+        `https://eol.org/services/authenticate`
+        (see API documentation)
+     2. Put it in the appropriate place in the config file
  2. Publish a new version of the resource
  3. Clear the cache from any previous painting run,
     since otherwise the `infer` command will be lazy and assume that
     cached results (from the previous version of the resource) are still
     correct.  Do `rm -rf infer-NNN` where NNN is the resource id.
- 4. `COMMAND=count` - if the count is 0, that probably means
+    (found somewhere under `~/.plotter-workspace/`)
+ 4. `rake paint:count` - if the count is 0, that probably means
     that the resource has been recently republished and it is time to
     proceed with branch painting.  It could also mean that the
     resource id is incorrect.  If the count is nonzero, then the resource has
     been previously painted, but has not been updated since, so go
     back and make sure you've published the new version.
- 5. `COMMAND=qc` - run quality control checks on the directives, looking for ill-formed
+ 5. `rake paint:qc` - run quality control checks on the directives, looking for ill-formed
     ones (those referring to missing pages and so on).
- 6. `COMMAND=infer` - write the inferred relationships to an `infer-NNN`
+ 6. `rake paint:infer` - write the inferred relationships to an `infer-NNN`
     directory, where NNN is the resource id.
- 7. `COMMAND=merge` - store the inferred relationships into the graphdb.
+ 7. `rake paint:merge` - store the inferred relationships into the graphdb.
 
-If you have both admin and non-admin tokens, you might run all but the
-last command using the non-admin token, out of an abundance of caution.
+The command `rake paint:paint` simply combines `rake paint:infer` followed by `rake paint:merge`.
 
-Branch painting generates a lot of logging output.  If you have a
-local web application instance you might want to add `config.log_level = :warn` to
+## Notes
+
+If you have both admin and non-admin tokens, it would be prudent to
+run all but the last command using the non-admin token, out of an
+abundance of caution.  Non-admin accounts are prevented from writing
+to the graphdb.
+
+Branch painting generates a lot of logging output.  If you are running a
+local web application instance, you might want to add `config.log_level = :warn` to
 `config/environments/development.rb` to reduce noise emitted to
 console.
