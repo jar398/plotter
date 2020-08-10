@@ -1,12 +1,12 @@
 # Branch painting
 
-TL;DR: use `rake paint:paint CONFIG=x ID=y` where x is `beta` or
+TL;DR: Use `rake paint:paint CONFIG=x ID=y` where x is `beta` or
 `prod` and y is the id of the resource according to neo4j (and the publishing
 database).  E.g.
 
     rake paint:paint CONFIG=beta ID=640
 
-'Branch painting' is the process of adding of trait assertions to the
+'Branch painting' is the process of adding trait assertions to the
 graph database that are inferred by propagating selected traits through the
 taxonomic hierarchy.  An inferred trait assertion is represented as
 an `:inferred_trait` relationship between a Page node and a Trait
@@ -64,12 +64,7 @@ Applicable parameters are:
 
 The complete sequence of operations, if one is being very careful, would be:
 
- 1. Set up the plotter config file
-     1. Obtain a production admin token using 
-        `https://beta.eol.org/services/authenticate` or
-        `https://eol.org/services/authenticate`
-        (see API documentation)
-     2. Put it in the appropriate place in the config file
+ 1. Set up the plotter config file; see below
  2. Publish a new version of the resource
  3. Clear the cache from any previous painting run,
     since otherwise the `infer` command will be lazy and assume that
@@ -82,20 +77,53 @@ The complete sequence of operations, if one is being very careful, would be:
     resource id is incorrect.  If the count is nonzero, then the resource has
     been previously painted, but has not been updated since, so go
     back and make sure you've published the new version.
+ 4. `rake paint:show_directives` - lists all of the resource's painting directives.
+    If no directives are shown then you may have the wrong resource id.
+    (Ids come from the publishing site.  Production and beta have different 
+    publishing sites and therefore different resource ids.)
  5. `rake paint:qc` - run quality control checks on the directives, looking for ill-formed
     ones (those referring to missing pages and so on).
- 6. `rake paint:infer` - write the inferred relationships to an `infer-NNN`
-    directory, where NNN is the resource id.
- 7. `rake paint:merge` - store the inferred relationships into the graphdb.
+ 6. `rake paint:prepare` - write the inferred relationships to an `infer-NNN`
+    directory on the staging server, where NNN is the resource id.
+ 7. `rake paint:publish` - store the inferred relationships into the graphdb.
 
-The command `rake paint:paint` simply combines `rake paint:infer` followed by `rake paint:merge`.
+The command `rake paint:paint` simply does `rake paint:prepare` followed by `rake paint:publish`.
+
+## Configuration
+
+Copy `config/config.sample.yml` to `config/config.yml` and edit the
+configuration directives as appropriate for your local `plotter`
+installation.
+
+ 1. Set `locations:workspace:path` to a local directory where plotter can put files
+ 1. Set `prod_publishing:token_file` to the local file that contains (or will contain)
+    a v3 API token; similarly for beta.  (see note, below)
+     1. Obtain a production admin token using 
+        `https://beta.eol.org/services/authenticate` or
+        `https://eol.org/services/authenticate`
+        (see API documentation)
+     1. Put the token in a file
+     1. Set `prod_publishing:token_file` to the path to that file
+ 1. Configure the staging server `locations:staging`.  The staging server must handle `scp`
+        commands (similar to `ssh`) that allow the local `rake` commands to place files in 
+        a directory that is visible via HTTP from the Neo4J server(s).
+        The config file needs both the `scp` destination location and
+        the HTTP location.  The examples in `config.sample.yml` should provide guidance.
+     1. `scp_location` specifies the directory on the staging server, prefixed by the
+        server name as understood by `ssh` (either a DNS name or a name configured in
+        `~/.ssh/config`)
+     1. `url` gives the prefix for URLs that will occur in neo4j `LOAD CSV` commands.
+
 
 ## Notes
 
-If you have both admin and non-admin tokens, it would be prudent to
-run all but the last command using the non-admin token, out of an
-abundance of caution.  Non-admin accounts are prevented from writing
-to the graphdb.
+If you have both admin and non-admin accounts, it would be prudent to
+provide tokens for both to `plotter`.  (The admin token goes in the
+file named under `update_token_file`, non-admin goes in file named
+under `token_file`.)  Non-admin accounts are prevented from writing to
+the graphdb, so using a non-admin account when possible reduces the
+chance of mistakes, which can be difficult to remedy.  Plotter runs
+commands that only read neo4j using the non-admin token.
 
 Branch painting generates a lot of logging output.  If you are running a
 local web application instance, you might want to add `config.log_level = :warn` to

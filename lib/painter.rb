@@ -62,9 +62,15 @@ class Painter
     @resource.get_id_for_graphdb(@assembly)
   end
 
+  # Infer, stage, and publish
+  def paint
+    prepare
+    publish
+  end
+
   # Infer and stage trait relationships (publish is separate)
 
-  def paint
+  def prepare
     n = count
     if n > 0
       STDERR.puts "Please erase inferred relationships before painting (found #{n})"

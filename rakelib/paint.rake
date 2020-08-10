@@ -22,18 +22,18 @@ namespace :paint do
 
   # Ordinary tasks
 
+  desc "Branch-paint a resource"
+  task :paint => :prepare do 
+    get_painter.publish
+  end
+
   desc "Compute inferred relationships and put them on the staging site"
   task :prepare do 
-    get_painter.paint
+    get_painter.prepare    # = infer + stage
   end
 
   desc "Transfer inferred relationships from staging site into the graphdb"
   task :publish do 
-    get_painter.publish
-  end
-
-  desc "Branch-paint a resource"
-  task :paint => :prepare do 
     get_painter.publish
   end
 
