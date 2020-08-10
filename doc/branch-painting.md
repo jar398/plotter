@@ -43,7 +43,7 @@ predicate of
 
 ## Using the branch painting script
 
-Branch painting is invoked using the `paint` family of rake commands.
+Branch painting is invoked using the `paint:` family of rake commands.
 Applicable parameters are:
 
 * `CONFIG`  - tag identifying configuration block within `config/config.yml`
@@ -111,14 +111,14 @@ installation.
      1. Obtain a production admin token using 
         `https://beta.eol.org/services/authenticate` or
         `https://eol.org/services/authenticate`
-        (see API [documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md))
+        (see [API documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md))
      1. Put the token in a file
      1. Set `prod_publishing:token_file` to the path to that file
  1. Configure the staging server `locations:staging`.  The staging server must handle `scp`
         commands (similar to `ssh`) that allow the local `rake` commands to place files in 
         a directory that is visible via HTTP from the Neo4J server(s).
-        The config file needs both the `scp` destination location and
-        the HTTP location.  The examples in `config.sample.yml` should provide guidance.
+        The config file needs both the `scp` destination location, so that plotter can write the inferred trait assertions to staging, and
+        the HTTP location, so that neo4j can read them.  The examples in `config.sample.yml` should provide guidance.
      1. `scp_location` specifies the directory on the staging server, prefixed by the
         server name as understood by `ssh` (either a DNS name or a name configured in
         `~/.ssh/config`)
