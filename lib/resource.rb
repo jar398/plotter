@@ -221,7 +221,7 @@ class Resource
     prepare_manifests(local)
 
     STDERR.puts("# Copying #{local} to #{remote}")
-    stdout_string, status = Open3.capture2("rsync -va #{local}/ #{remote}/")
+    stdout_string, status = Open3.capture2("#{command} #{local}/ #{remote}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
   end
 
