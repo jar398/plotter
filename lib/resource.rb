@@ -201,8 +201,8 @@ class Resource
     "#{prefix_all}#{get_qualified_id}-"
   end
 
-  def get_staging_scp_prefix    # specific to this resource
-    prefix_all = @instance.get_staging_location.get_scp_specifier
+  def get_staging_rsync_prefix    # specific to this resource
+    prefix_all = @instance.get_staging_location.get_rsync_location
     # maybe switch to - instead of / ?
     "#{prefix_all}#{get_qualified_id}-"
   end
@@ -215,7 +215,8 @@ class Resource
 
   def copy_to_stage(relative)
     local = File.join(get_staging_dir, relative)
-    remote = "#{get_staging_scp_prefix}#{relative}"
+    remote = "#{get_staging_rsync_prefix}#{relative}"
+    command = @instance.get_staging_location.get_rsync_command
 
     prepare_manifests(local)
 

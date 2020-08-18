@@ -42,7 +42,12 @@ class Location
     return @config["url"]
   end
 
-  def get_scp_specifier; @config["scp_location"]; end
+  def get_rsync_location
+    @config["rsync_location"] || @config["scp_location"]
+  end
+  def get_rsync_command
+    @config["rsync_command"] || "rsync -va"
+  end
 
   # Stored file looks like {"resources":[{"id":830, ...}, ...], ...}
   def load_resource_records(cachep = false)   # Returns an array
@@ -58,9 +63,14 @@ class Location
       url = "#{get_url}resources.json?per_page=10000"
       obj = System.load_json(url)
     end
-    resources = obj["resources"]
-    puts "Read #{resources.length} resource records"
-    resources
+    if obj.key?("resources")
+      resources = obj["resources"]
+      puts "Read #{resources.length} resource records"
+      resources
+    else
+      puts "** No resource records"
+      []
+    end
   end
 
   def flush_resource_records_cache

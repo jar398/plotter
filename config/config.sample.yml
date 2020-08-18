@@ -41,7 +41,8 @@ locations:
     ids_from: beta_publishing
 
   staging:
-    scp_location: 'varela:public_html/eol/staging/'
+    rsync_location: 'varela:public_html/eol/staging/'
+    rsync_command: 'rsync -va'
     url: 'http://varela.csail.mit.edu/~jar/eol/staging/'
 
   concordance:

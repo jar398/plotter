@@ -119,9 +119,12 @@ installation.
         a directory that is visible via HTTP from the Neo4J server(s).
         The config file needs both the `scp` destination location, so that plotter can write the inferred trait assertions to staging, and
         the HTTP location, so that neo4j can read them.  The examples in `config.sample.yml` should provide guidance.
-     1. `scp_location` specifies the directory on the staging server, prefixed by the
+     1. `rsync_location` specifies the target directory on the staging server, prefixed by the
         server name as understood by `ssh` (either a DNS name or a name configured in
         `~/.ssh/config`)
+     1. `rsync_command` specifies the `rsync`-like command to use to transfer local files
+        to the staging server (this string does not include the source or target).  
+        If not specified, defaults to `rsync -av`.
      1. `url` gives the prefix for URLs that will occur in neo4j `LOAD CSV` commands.
      1. If the local machine has a suitable directory, with an HTTP server visible to neo4j,
         the staging area can be configured to be that directory.  In this case the 
