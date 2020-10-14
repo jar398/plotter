@@ -46,7 +46,7 @@ class Assembly
   end
 
   def get_workspace        # For all purposes
-    @system.get_workspace
+    get_instance.get_workspace
   end
 
   def get_opendata_dwca(landing_url, resource_name)

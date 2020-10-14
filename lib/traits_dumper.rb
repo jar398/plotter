@@ -136,6 +136,9 @@ class TraitsDumper
       OPTIONAL MATCH (r)-[:parent_term]->(parent:Term)
       RETURN r.uri, r.name, r.type, parent.uri
       ORDER BY r.uri"
+    # To add, maybe: trait_row_count, distinct_page_count, synonym_of,
+    #   object_for_predicate
+    #   and many others... definition, comment, attribution, section_ids, ...
     terms_keys = ["uri", "name", "type", "parent_uri"]
     supervise_query(terms_query, terms_keys, "terms.csv")
     # returns nil on failure (e.g. timeout)
@@ -172,7 +175,9 @@ class TraitsDumper
                    "object_page_id", "value_uri",
                    "normal_measurement", "normal_units_uri", "normal_units",
                    "measurement", "units_uri", "units",
-                   "literal"]
+                   "literal",
+                   "method", "remarks", "sample_size", "name_en",
+                   "citation"]
     predicates = list_trait_predicates
     STDERR.puts "#{predicates.length} trait predicate URIs"
     files = []
@@ -190,14 +195,17 @@ class TraitsDumper
         MATCH (t)-[:predicate]->(predicate:Term {uri: '#{predicate}'})
         OPTIONAL MATCH (t)-[:supplier]->(r:Resource)
         OPTIONAL MATCH (t)-[:object_term]->(obj:Term)
+        OPTIONAL MATCH (t)-[:object_page]->(obj_page:Page)
         OPTIONAL MATCH (t)-[:normal_units_term]->(normal_units:Term)
         OPTIONAL MATCH (t)-[:units_term]->(units:Term)
         RETURN t.eol_pk, page.page_id, r.resource_pk, r.resource_id,
                t.source, t.scientific_name, predicate.uri,
-               t.object_page_id, obj.uri,
+               obj_page.page_id, obj.uri,
                t.normal_measurement, normal_units.uri, t.normal_units, 
                t.measurement, units.uri, t.units, 
-               t.literal"
+               t.literal,
+               t.method, t.remarks, t.sample_size, t.name_en,
+               t.citation"
       # TEMPDIR/{traits,metadata}.csv.predicates/
       ppath = supervise_query(traits_query, traits_keys, "traits.csv.predicates/#{i}.csv")
       # ppath is nil on failure (e.g. timeout)
