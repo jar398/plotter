@@ -9,7 +9,7 @@ class Location
 
   def name; @name; end
 
-  def get_graph
+  def get_graph(writable = false)
     return @graph if @graph
 
     url = @config["neo4j"]
@@ -25,8 +25,14 @@ class Location
   end
 
   def proxy_graphdb
-    token_path = @config["update_token_file"] ||
-                 @config["token_file"]
+    token_path = @config["token_file"]
+    token = File.read(token_path).strip
+    puts "# Graphdb proxy URL is #{get_url}"
+    Graph.via_http(get_url, token)
+  end
+
+  def proxy_writable_graphdb
+    token_path = @config["update_token_file"]
     token = File.read(token_path).strip
     puts "# Graphdb proxy URL is #{get_url}"
     Graph.via_http(get_url, token)

@@ -29,19 +29,26 @@ class System
     end
 
     def copy_from_internet(url, path)
-      workspace = File.basename(path)
+      temp = path + ".new"
       # Download the archive file from Internet if it's not
-      `rm -rf #{workspace}`
-      STDERR.puts "Copying #{url} to #{path}"
+      STDERR.puts "Copying #{url} to #{temp}"
       # This is really clumsy... ought to stream it, or use curl or wget
-      open(url, 'rb') do |input|
-        File.open(path, 'wb') do |file|
+      URI.open(url, 'rb') do |input|
+        FileUtils.mkdir_p(File.dirname(temp))
+        File.open(temp, 'wb') do |file|
           file.write(input.read)
         end
       end
-      raise('Did not download') unless File.exist?(path) && File.size(path).positive?
-      STDERR.puts "... #{File.size(path)} octets"
-      path
+      raise('Did not download') unless File.exist?(temp)
+      if File.size(temp).positive?
+        STDERR.puts "... #{File.size(temp)} octets"
+        FileUtils.rm path if File.exist?(path)
+        FileUtils.mv temp, path
+        path
+      else
+        FileUtils.rm temp
+        raise('Failed to download #{url}')
+      end
     end
 
     # Load YAML or JSON from the web or from a local file

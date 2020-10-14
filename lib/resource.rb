@@ -294,7 +294,7 @@ class Resource
              DETACH DELETE v
              RETURN COUNT(v)
              LIMIT 10000000"
-    r = assembly.get_graph.run_query(query)
+    r = assembly.get_graph(writable = true).run_query(query)
     if r
       count = r["data"][0][0]
       STDERR.puts("Erased #{count} relationships")
@@ -336,7 +336,7 @@ class Resource
                    (r)
              RETURN COUNT(row)
              LIMIT 1"
-    r = assembly.get_graph.run_query(query)
+    r = assembly.get_graph(writable = true).run_query(query)
     count = r ? r["data"][0][0] : 0
     STDERR.puts("Merged #{count} relationships from #{url}")
   end

@@ -53,8 +53,8 @@ class Assembly
     @system.get_opendata_dwca(landing_url, resource_name)
   end
 
-  def get_graph
-    get_location("graphdb").get_graph
+  def get_graph(writable = false)
+    get_location("graphdb").get_graph(writable)
   end
 
   # Graphdb and/or publishing id.  They're the same when both exist.
