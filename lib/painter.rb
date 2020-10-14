@@ -50,12 +50,12 @@ class Painter
     @assembly = assembly
   end
 
-  def get_graph
-    @assembly.get_graph
+  def get_graph(writable = false)
+    @assembly.get_graph(writable)
   end
 
-  def run_query(cql)
-    get_graph.run_query(cql)
+  def run_query(cql, write = false)
+    get_graph(write).run_query(cql)
   end
 
   def get_id
@@ -89,7 +89,8 @@ class Painter
                          (:Page)
                    DELETE r
                    RETURN COUNT(*)
-                   LIMIT 10")
+                   LIMIT 10",
+                  write = true)
     if r
       STDERR.puts(r["data"][0])
     end
@@ -365,7 +366,8 @@ class Painter
                MERGE (page)-[i:inferred_trait]->(trait)
                RETURN COUNT(i) 
                LIMIT 1"
-      r = run_query(query)
+      r = run_query(query,
+                    write = true)
       if r
         count = r["data"][0]
       else
@@ -506,7 +508,8 @@ class Painter
        MERGE (m)-[:predicate]->(pred)
        MERGE (t)-[:metadata]->(m)
        RETURN m.eol_pk
-       LIMIT 10")
+       LIMIT 10",
+      write = true)
     if r["data"].length == 0
       STDERR.puts("Failed to add #{tag}(#{page_id},#{trait_id})")
     else
@@ -590,15 +593,18 @@ class Painter
        MERGE (p3)-[:parent]->(p2)
        MERGE (p4)-[:parent]->(p3)
        MERGE (p5)-[:parent]->(p4)
-       // LIMIT")
+       // LIMIT",
+      write = true)
     # Create silly resource
     run_query(
       "MERGE (:Resource {resource_id: #{id}})
-      // LIMIT")
+      // LIMIT",
+      write = true)
     # Create silly predicate
     run_query(
       "MERGE (pred:Term {uri: '#{TESTING_TERM}', name: 'testing_predicate'})
-      // LIMIT")
+      // LIMIT",
+      write = true)
 
     # Create trait to be painted
     r = run_query(
@@ -618,7 +624,8 @@ class Painter
        MERGE (t2)-[:predicate]->(pred)
        MERGE (p2)-[:trait]->(t2)
        MERGE (t2)-[:supplier]->(r)
-       // LIMIT")
+       // LIMIT",
+      write = true)
 
     # Load directives specified inline (not from a file)
     # Assumes existence of a Trait node in the resource with 
@@ -651,7 +658,8 @@ class Painter
        WITH m, m.eol_pk AS n
        DETACH DELETE m
        RETURN n
-       LIMIT 10000")
+       LIMIT 10000",
+      write = true)
     STDERR.puts("Flushed MetaData nodes: #{z["data"]}") if z
 
     # Get rid of the test resource traits (and their :trait,
@@ -662,7 +670,8 @@ class Painter
        WITH t, t.eol_pk AS n
        DETACH DELETE t
        RETURN n
-       LIMIT 10000")
+       LIMIT 10000",
+      write = true)
     STDERR.puts("Flushed Trait nodes: #{z["data"]}") if z
 
     # Get rid of the silly term
@@ -671,7 +680,8 @@ class Painter
        WITH t, t.name AS n
        DETACH DELETE t
        RETURN n
-       LIMIT 10000")
+       LIMIT 10000",
+      write = true)
     STDERR.puts("Flushed Term nodes: #{z["data"]}") if z
 
     # Get rid of the resource node itself
@@ -680,7 +690,8 @@ class Painter
        WITH r, r.resource_id AS n
        DETACH DELETE r
        RETURN n
-       LIMIT 10000")
+       LIMIT 10000",
+      write = true)
     STDERR.puts("Flushed Resource nodes: #{z["data"]}") if z
 
     # Get rid of taxa introduced for testing purposes
@@ -689,7 +700,8 @@ class Painter
        WITH p, p.page_id AS n
        DETACH DELETE p
        RETURN n
-       LIMIT 10000")
+       LIMIT 10000",
+      write = true)
     STDERR.puts("Flushed Page nodes: #{z["data"]}") if z
 
     show(resource)
