@@ -10,3 +10,5 @@
 Gemfile.lock
 config/config.yml
 config/*-publishing
+TAGS
+/work/
