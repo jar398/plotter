@@ -7,7 +7,12 @@ CLDIFF=../../cldiff/src
 TAXON_1 = ~/.plotter_workspace/dwca/dd50ec34/unpacked/taxa.txt
 TAXON_724 = ~/.plotter_workspace/dwca/db5120e8/unpacked/taxon.tab
 
-SOURCES = $(CLDIFF)/alignment.py $(CLDIFF)/report.py $(CLDIFF)/checklist.py
+SOURCES = $(CLDIFF)/alignment.py $(CLDIFF)/report.py $(CLDIFF)/checklist.py \
+	  $(CLDIFF)/diff.py
+
+doc/1-724-mam-diff.csv: work/1-mam.csv work/724-mam.csv $(SOURCES)
+	python3 $(CLDIFF)/report.py work/1-mam.csv work/724-mam.csv \
+	  --format diff --out $@
 
 doc/1-724-mam-report.csv: work/1-mam.csv work/724-mam.csv $(SOURCES)
 	python3 $(CLDIFF)/report.py work/1-mam.csv work/724-mam.csv --out $@
