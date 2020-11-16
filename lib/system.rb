@@ -51,6 +51,7 @@ class System
         puts "# GET #{url}"
         strng = Net::HTTP.get(url)
       elsif is_url?(specifier)
+        url = specifier
         puts "# Get #{url}"
         strng = Net::HTTP.get(URI.parse(url))
       else
