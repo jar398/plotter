@@ -90,6 +90,8 @@ The complete sequence of operations, if one is being very careful, would be:
     publishing sites and therefore different resource ids.)
  5. `rake paint:qc` - run quality control checks on the directives, looking for ill-formed
     ones (those referring to missing pages and so on).
+    The output of this command would have to be manually inspected, so this is
+    not suitable for a script that does other things.
  6. `rake paint:prepare` - write the inferred relationships to an `infer-NNN`
     directory on the staging server, where NNN is the resource id.
  7. `rake paint:publish` - store the inferred relationships into the graphdb.
