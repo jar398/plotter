@@ -14,7 +14,6 @@ class Location
 
     url = @config["neo4j"]
     if url
-      puts "# Neo4j URL is #{url}"
       @graph = Graph.via_neography(url)
     else
       v3api = @system.get_location(@config["via_api"])
