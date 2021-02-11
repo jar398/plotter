@@ -82,11 +82,13 @@ class System
     end
     @dwcas = {}
 
+    # Instance = publishing + repository
     @instances = {}
     config["instances"].each do |tag, config|
       @instances[tag] = Instance.new(self, config, tag)
     end
 
+    # Assembly = instance + graphdb
     @assemblies = {}
     config["assemblies"].each do |tag, config|
       @assemblies[tag] = Assembly.new(self, config, tag)
@@ -109,15 +111,14 @@ class System
   end
 
   def get_assembly(tag)
-    a = @assemblies[tag]
-    raise "No such assembly: #{tag}" unless a
-    a
+    raise "No such assembly: #{tag}" unless @assemblies.include?(tag)
+    return @assemblies[tag]
   end
 
+  # Returns an Instance ... 
   def get_instance(tag)
-    a = @instances[tag]
-    raise "No such instance: #{tag}" unless a
-    a
+    raise "No such instance: #{tag}" unless @instances.include?(tag)
+    return @instances[tag]
   end
 
   def get_location(tag)

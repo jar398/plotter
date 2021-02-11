@@ -18,7 +18,7 @@ require 'system'
 class Instance
 
   def self.instance(tag)
-    System.system().get_instance(tag)
+    System.system().get_instance_config(tag)
   end
 
   def initialize(system, config, tag)

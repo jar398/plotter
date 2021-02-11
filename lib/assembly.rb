@@ -25,14 +25,10 @@ class Assembly
     @system = system
     @config = config or {}
     @assembly_name = tag
-    @instance = system.get_instance(@config["instance"])
+    @instance = system.get_instance(tag)
   end
 
   def name; @assembly_name; end
-
-  def get_instance
-    @system.get_instance(@config["instance"])
-  end
 
   def get_location(role)
     if @config.include?(role)
@@ -46,7 +42,7 @@ class Assembly
   end
 
   def get_workspace        # For all purposes
-    get_instance.get_workspace
+    @instance.get_workspace
   end
 
   def get_opendata_dwca(landing_url, resource_name)

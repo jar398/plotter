@@ -25,7 +25,7 @@ def getmap(id, repo, outfile):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('id', help='resource id')
+  parser.add_argument('id', help='resource id in repo')
   parser.add_argument('dest', help='output file')
   parser.add_argument('repo', default='https://content.eol.org', nargs='?',
                       help='EOL content repository host name')

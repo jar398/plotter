@@ -67,7 +67,10 @@ class Resource
   def get_dwca
     opendata_url = @config["landing_page"]
     unless opendata_url
-      raise "No landing_page provided for resource #{name} (#{get_qualified_id})"
+      opendata_url = @config["opendataUrl"]
+      unless opendata_url
+        raise "No landing page provided for resource #{name} (#{get_qualified_id})"
+      end
     end
     @instance.get_opendata_dwca(opendata_url, name)
   end
