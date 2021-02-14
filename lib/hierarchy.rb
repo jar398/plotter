@@ -17,6 +17,7 @@ class Hierarchy
 
   def initialize(assembly)
     @assembly = assembly
+    @chunksize = 100000
   end
 
   def get_graph
@@ -69,6 +70,9 @@ class Hierarchy
                   toInteger(row.taxonID) AS page_id,
                   toInteger(row.#{parent_field}) AS parent_id
              MATCH (page:Page {page_id: page_id})
+             OPTIONAL MATCH (page)-[rel:parent]->(:Page)
+             DELETE rel
+             WITH page, parent_id
              MATCH (parent:Page {page_id: parent_id})
              MERGE (page)-[:parent]->(parent)
              RETURN COUNT(page)
@@ -127,6 +131,13 @@ class Hierarchy
     puts "#{n} deletions performed"
   end
 
-  # Change fields of nodes that are kept.
+  # Extract hierarchy from graphdb
+  def dump(csv_path)
+    pag = Paginator.new(get_graph)
+    cql = "MATCH (p:Page)
+           OPTIONAL MATCH (p:Page)-[:parent]->(q:Page)
+           RETURN p.page_id, q.page_id, p.rank, p.canonical"
+    pag.supervise_query(cql, nil, @chunksize, csv_path)
+  end
 
 end

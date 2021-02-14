@@ -30,5 +30,11 @@ namespace :hierarchy do
     assem = Assembly.assembly(tag)
     Hierarchy.new(assem).delete(file)
   end
+  task :dump do
+    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
+    file = ENV['DEST'] || raise("Please provide destination file name")
+    assem = Assembly.assembly(tag)
+    Hierarchy.new(assem).dump(file)
+  end
 
 end

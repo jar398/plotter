@@ -29,6 +29,10 @@ def diff(path1, path2, outdir):
             new_count = 0
             changed_count = 0
             unchanged_count = 0
+            field_added_count = 0
+            field_removed_count = 0
+            dup_count = 0
+            previous2 = -1
             while True:
               if not row1:
                 try:
@@ -53,20 +57,21 @@ def diff(path1, path2, outdir):
                 goneish_writer.writerow(row1)
                 gone_count += 1
                 row1 = None         # force read in1
-                continue
               elif page2 < page1:
                 # insert page2
                 newish_writer.writerow(row2)
                 new_count += 1
                 row2 = None         # force read in2
-                continue
+                previous2 = page2
               elif page1 == NO_MORE_PAGES:
                 # both inputs are exhausted
                 break
               else:
                 # page persists but some fields might be different
                 changed = False
-                for i in range(0, len(row1)):
+                field_added = False
+                field_removed = False
+                for i in range(1, len(row1)):
                   a = row1[i]
                   b = row2[i]
                   if a != b:
@@ -83,19 +88,32 @@ def diff(path1, path2, outdir):
                       pass
                     else:
                       changeish_writer.writerow([page1, field, a, b])
-                      changed = True
+                      if a and b:
+                        changed = True
+                      elif a:
+                        field_removed = True
+                      elif b:
+                        field_added = True
                 if changed:
                   changed_count += 1
+                elif field_added:
+                  field_added_count += 1
+                elif field_removed:
+                  field_removed_count += 1
                 else:
                   unchanged_count += 1
                 row1 = None
                 row2 = None
-            print("Input 1:   %8s" % in1_count, file=sys.stderr)
-            print("Input 2:   %8s" % in2_count, file=sys.stderr)
-            print("New:       %8s" % new_count, file=sys.stderr)
-            print("Deleted:   %8s" % gone_count, file=sys.stderr)
-            print("Changed:   %8s" % changed_count, file=sys.stderr)
-            print("Unchanged: %8s" % unchanged_count, file=sys.stderr)
+                previous2 = page2
+            print("Input 1:       %8s" % in1_count, file=sys.stderr)
+            print("Input 2:       %8s" % in2_count, file=sys.stderr)
+            print("New:           %8s" % new_count, file=sys.stderr)
+            print("Deleted:       %8s" % gone_count, file=sys.stderr)
+            print("Field changed: %8s" % changed_count, file=sys.stderr)
+            print("Field added:   %8s" % field_added_count, file=sys.stderr)
+            print("Field removed: %8s" % field_removed_count, file=sys.stderr)
+            print("Unchanged:     %8s" % unchanged_count, file=sys.stderr)
+            print("Duplicate:     %8s" % dup_count, file=sys.stderr)
 
 def is_scientific(name):
   return (' 1' in name or \

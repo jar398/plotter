@@ -25,7 +25,7 @@ class Assembly
     @system = system
     @config = config or {}
     @assembly_name = tag
-    @instance = system.get_instance(tag)
+    @instance = system.get_instance(config["instance"])
   end
 
   def name; @assembly_name; end

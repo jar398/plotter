@@ -1,6 +1,7 @@
 # Required: specify CONF=tag  (test, dev, prod)
 
 require 'traits_dumper'
+require 'traits_loader'
 require 'graph'
 
 namespace :traits do
@@ -23,6 +24,11 @@ namespace :traits do
     dest = ENV['ZIP'] || assembly.get_workspace    # ?
     TraitsDumper.new(clade, tempdir, chunksize, assembly.get_graph).dump_traits(dest)
 
+  end
+
+  desc "Load traits from a traits dump into the graphdb"
+  task :load do
+    raise "not yet implemented"
   end
 
 end
