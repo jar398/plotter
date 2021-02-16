@@ -8,7 +8,6 @@
 #   instances  - publishing + repository locations
 #   assemblies - pairing of an instance with a graphdb
 
-require 'assembly'
 require 'location'
 require 'resource'
 require 'nokogiri'
@@ -81,28 +80,6 @@ class System
       @locations[loc_tag] = Location.new(self, config, loc_tag)
     end
     @dwcas = {}
-
-    # Instance = publishing + repository
-    @instances = {}
-    config["instances"].each do |tag, config|
-      @instances[tag] = Instance.new(self, config, tag)
-    end
-
-    # Assembly = instance + graphdb
-    @assemblies = {}
-    config["assemblies"].each do |tag, config|
-      @assemblies[tag] = Assembly.new(self, config, tag)
-    end
-
-    # Locally configured resources only
-    @resource_records = {}
-    @resource_records_by_id = {}
-    config["resources"].each do |record|
-      @resource_records[record["name"]] = record
-      if record.key?("id")
-        @resource_records_by_id[record["id"]] = record
-      end
-    end
   end
 
   def get_workspace
@@ -112,30 +89,14 @@ class System
   end
 
   def get_assembly(tag)
-    raise "No such assembly: #{tag}" unless @assemblies.include?(tag)
-    return @assemblies[tag]
-  end
-
-  # Returns an Instance ... 
-  def get_instance(tag)
-    raise "No such instance: #{tag}" unless @instances.include?(tag)
-    return @instances[tag]
+    raise("No assembly name provided") unless tag
+    loc = get_location(tag)
+    raise "No such assembly: #{tag}" unless loc
+    return loc
   end
 
   def get_location(tag)
     @locations[tag]
-  end
-
-  # Specially configured system resource records from config.yml
-  def get_resource_record(name)
-    if @resource_records.include?(name)
-      @resource_records[name]
-    end
-  end
-  def get_resource_record_by_id(id)
-    if @resource_records_by_id.include?(id)
-      @resource_records_by_id[id]
-    end
   end
 
   # If you don't have an opendata landing page (which provides a

@@ -1,4 +1,3 @@
-require 'assembly'
 require 'system'
 
 namespace :instance do

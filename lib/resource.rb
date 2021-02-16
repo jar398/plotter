@@ -53,6 +53,15 @@ class Resource
     dir
   end
 
+  # Assume ids are consistent between graphdb and publishing
+  def get_publishing_resource
+    @location.get_publishing_location.get_own_resource_by_id(id)
+  end
+
+  def get_repository_resource
+    @location.get_repository_location.get_own_resource_by_id(repository_id)
+  end
+
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
 
   # Need one of dwca_path (local), dwca_url (remote opendata)
@@ -63,7 +72,7 @@ class Resource
       lp_url = @config["opendataUrl"]
       unless lp_url
         rid = repository_id
-        loc = @location.get_repository_location
+        loc = @location
         rec = loc.get_resource_record_by_id(rid)
         raise "No repository resource record for #{name} = #{rid}" \
           unless rec
@@ -455,11 +464,14 @@ class Resource
 
   def info
     puts "Name: #{name}"
-    puts "Id in publishing site and graphdb: #{@config["id"]}"
-    puts "Id in content repository: #{repository_id}"
     puts "Workspace: #{get_workspace}"
     puts "Staging: #{get_staging_dir}"
-    puts "Opendata landing page URL: #{get_landing_page_url}"
+    puts "Id in graphdb: #{id}"
+    pr = get_publishing_resource
+    puts "Id in publishing instance: #{pr.id}"
+    rr = pr.get_repository_resource
+    puts "Id in repository instance: #{rr.id}"
+    puts "Opendata landing page URL: #{rr.get_landing_page_url}"
   end
 
 end

@@ -1,23 +1,17 @@
+require 'system'
 require 'resource'
-require 'assembly'
 
 namespace :resource do
 
-  # The assembly/instance stuff is all messed up.  Straighten it out
-  # one of these days.
-
   def get_assembly
-    System.system.get_assembly(ENV['CONF'])
-  end
-
-  def get_instance
-    get_assembly.get_instance
+    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
+    System.system.get_assembly(tag)
   end
 
   def get_resource
     id = ENV['ID'] || raise("Please provide env var ID")
     tag = ENV['CONF'] || raise("Please provide env var CONF")
-    get_instance.get_resource_by_id(id.to_i)
+    get_assembly.get_resource_by_id(id.to_i)
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
