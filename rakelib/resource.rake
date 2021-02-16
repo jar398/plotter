@@ -51,6 +51,11 @@ namespace :resource do
     get_resource.count(get_assembly)
   end
 
+  desc "Extract page id map to a file"
+  task :map do
+    get_resource.get_page_id_map()
+  end
+
   desc "Show miscellaneous information about a resource"
   task :info do
     get_resource.info()

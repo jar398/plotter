@@ -94,6 +94,7 @@ class System
       @assemblies[tag] = Assembly.new(self, config, tag)
     end
 
+    # Locally configured resources only
     @resource_records = {}
     @resource_records_by_id = {}
     config["resources"].each do |record|

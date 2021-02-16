@@ -140,7 +140,7 @@ class Table
   end
 
   def open_csv_in(part_path = @path)
-    puts "Reading table at #{@part_path}"
+    puts "Reading table at #{part_path}"
     # But, see Resource.get_page_id_map and Paginator.
     quote_char = (@separator == "\t" ? "\x00" : '"')
 

@@ -13,8 +13,8 @@ require 'property'
 
 class Resource
 
-  def initialize(instance, rec)
-    @instance = instance
+  def initialize(rec, loc)
+    @location = loc
     raise "gotta have a name at least" unless rec["name"]
     @config = rec               # Publishing resource record (from JSON/YAML)
   end
@@ -22,57 +22,60 @@ class Resource
   # ---------- Various 'identifiers'...
 
   def name; @config["name"]; end
-
-  def get_qualified_id
-    pid = @config["id"]
-    # TBD: generate random publishing id if none found in config...
-    rid = @config["repository_id"]
-    suffix = (rid ? ".#{rid}" : "")
-    qid = "#{@instance.name}.#{pid}#{suffix}"
-    @config["qualified_id"] = qid
-    qid
-  end
+  def id; @config["id"]; end
 
   def graphdb_id
     @config["id"]
   end
 
   def repository_id
-    @config["repository_id"]
+    rid = @config["repository_id"]
+    puts rid
+    raise "No repository id for resource #{id} = #{name}" unless rid
+    rid
   end
 
   # ---------- 
 
   def get_workspace             # For this resource, with its multiple presences
-    dir = File.join(@instance.get_workspace,
+    dir = File.join(@location.get_workspace,
                     "resources",
-                    get_qualified_id)
+                    @config["id"].to_s)
     FileUtils.mkdir_p(dir)
     dir
   end
 
-  def get_staging_dir
-    dir = File.join(@instance.get_workspace,
+  def get_staging_dir           # Local staging area (before rsync)
+    dir = File.join(@location.get_workspace,
                     "staging",
-                    get_qualified_id)
+                    @config["id"].to_s)
     FileUtils.mkdir_p(dir)
     dir
   end
-
 
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
 
   # Need one of dwca_path (local), dwca_url (remote opendata)
 
-  def get_dwca
-    opendata_url = @config["landing_page"]
-    unless opendata_url
-      opendata_url = @config["opendataUrl"]
-      unless opendata_url
-        raise "No landing page provided for resource #{name} (#{get_qualified_id})"
+  def get_landing_page_url
+    lp_url = @config["landing_page"]
+    unless lp_url
+      lp_url = @config["opendataUrl"]
+      unless lp_url
+        rid = repository_id
+        loc = @location.get_repository_location
+        rec = loc.get_resource_record_by_id(rid)
+        raise "No repository resource record for #{name} = #{rid}" \
+          unless rec
+        lp_url = rec["opendataUrl"]
       end
     end
-    @instance.get_opendata_dwca(opendata_url, name)
+    lp_url
+  end
+
+  def get_dwca
+    lp_url = get_landing_page_url
+    System.system().get_opendata_dwca(lp_url, name)
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
@@ -200,14 +203,14 @@ class Resource
   # For staging area location and structure see ../README.md
 
   def get_staging_url_prefix    # specific to this resource
-    prefix_all = @instance.get_staging_location.get_url
-    "#{prefix_all}#{get_qualified_id}-"
+    prefix_all = @location.get_staging_location.get_url
+    "#{prefix_all}#{id}-"
   end
 
   def get_staging_rsync_prefix    # specific to this resource
-    prefix_all = @instance.get_staging_location.get_rsync_location
+    prefix_all = @location.get_staging_location.get_rsync_location
     # maybe switch to - instead of / ?
-    "#{prefix_all}#{get_qualified_id}-"
+    "#{prefix_all}#{id}-"
   end
 
   # Copy the staging/TAG.PID.RID/ directory out to the staging host.
@@ -219,7 +222,7 @@ class Resource
   def copy_to_stage(relative)
     local = File.join(get_staging_dir, relative)
     remote = "#{get_staging_rsync_prefix}#{relative}"
-    command = @instance.get_staging_location.get_rsync_command
+    command = @location.get_staging_location.get_rsync_command
 
     prepare_manifests(local)
 
@@ -354,6 +357,31 @@ class Resource
   def get_page_id_map
     return @page_id_map if @page_id_map
 
+    path = File.join(get_workspace, "page_id_map.csv")
+    if File.exist?(path)
+      puts "Reading page id map from #{path}"
+      csv = CSV.open(path, "r:UTF-8", col_sep: ",", quote_char: '"')
+      csv.shift
+      page_id_map = {}
+      csv.each do |row_in|
+        (node_id, page_id) = row_in
+        page_id_map[node_id] = page_id.to_i
+      end
+      @page_id_map = page_id_map
+    else
+      puts "Writing page id map to #{path}"
+      @page_id_map = fetch_page_id_map
+      csv_out = CSV.open(path, "w:UTF-8")
+      csv_out << ["resource_pk", "page_id"]
+      @page_id_map.each do |node_id, page_id|
+        csv_out << [node_id, page_id.to_i]
+      end
+      csv_out.close
+    end
+    @page_id_map
+  end
+
+  def fetch_page_id_map
     page_id_map = {}
 
     tt = get_dwca.get_table(Claes.taxon)      # a Table
@@ -367,8 +395,7 @@ class Resource
       end
     else
       repository_url = get_url_for_repository
-      id_in_repository = @instance.repo_id_for_resource(name)
-      STDERR.puts "Getting page ids for #{id_in_repository} from #{repository_url}"
+      STDERR.puts "Getting page ids for #{repository_id} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
       # using the web service; put it in a hash for easy lookup.
@@ -376,7 +403,7 @@ class Resource
 
       # e.g. https://beta-repo.eol.org/service/page_id_map/600
 
-      service_url = "#{repository_url}service/page_id_map/#{id_in_repository}"
+      service_url = "#{repository_url}service/page_id_map/#{repository_id}"
       STDERR.puts "Request URL = #{service_url}"
 
       service_uri = URI(service_url)
@@ -416,15 +443,23 @@ class Resource
         STDERR.puts "Got chunk #{skip}, going for another"
       end
     end
-    STDERR.puts "Got #{page_id_map.size} page ids"
-    @page_id_map = page_id_map
-    @page_id_map
+    STDERR.puts "Got #{page_id_map.size} page ids" 
+    page_id_map
   end
 
   def get_url_for_repository
-    repository_url = @instance.get_location("repository").get_url
+    repository_url = @location.get_url
     repository_url += "/" unless repository_url.end_with?("/")
     repository_url
+  end
+
+  def info
+    puts "Name: #{name}"
+    puts "Id in publishing site and graphdb: #{@config["id"]}"
+    puts "Id in content repository: #{repository_id}"
+    puts "Workspace: #{get_workspace}"
+    puts "Staging: #{get_staging_dir}"
+    puts "Opendata landing page URL: #{get_landing_page_url}"
   end
 
 end

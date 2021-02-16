@@ -1,3 +1,5 @@
+# This code will no longer work due to many many changes in system.rb
+# and friends
 
 class Concordance
 
@@ -73,7 +75,8 @@ class Concordance
           val1
         end
       else
-        imp = Resource.new(self, record)
+        # ???? what instance ????
+        imp = Resource.new(self, loc, record)
         @resources[name] = imp
       end
     end

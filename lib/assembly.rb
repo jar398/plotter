@@ -29,6 +29,7 @@ class Assembly
   end
 
   def name; @assembly_name; end
+  def get_instance; @instance; end
 
   def get_location(role)
     if @config.include?(role)
@@ -41,34 +42,8 @@ class Assembly
     loc
   end
 
-  def get_workspace        # For all purposes
-    @instance.get_workspace
-  end
-
-  def get_opendata_dwca(landing_url, resource_name)
-    @system.get_opendata_dwca(landing_url, resource_name)
-  end
-
   def get_graph
     get_location("graphdb").get_graph
-  end
-
-  # Graphdb and/or publishing id.  They're the same when both exist.
-  def graphdb_id_for_resource(name)
-    rec = get_resource_record(name)
-    return rec["id"] if rec
-  end
-
-  # Id in repository database.
-  def repo_id_for_resource(name)
-    gid = graphdb_id_for_resource(name)
-    rec = get_location("publishing").get_resource_record_by_id(id)
-    raise "No publishing record with name #{name} in #{@assembly_name} for #{name}" \
-      unless rec
-    rid = rec["repository_id"]
-    raise "No repository record with id #{id} in #{@assembly_name} for #{name}" \
-      unless rid
-    rid
   end
 
 end
