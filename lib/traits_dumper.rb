@@ -153,8 +153,8 @@ class TraitsDumper
      "MATCH (page:Page) #{transitive_closure_part}
       WHERE page.canonical IS NOT NULL
       OPTIONAL MATCH (page)-[:parent]->(parent:Page)
-      RETURN page.page_id, parent.page_id, page.canonical"
-    pages_keys = ["page_id", "parent_id", "canonical"] #fragile
+      RETURN page.page_id, parent.page_id, page.rank, page.canonical"
+    pages_keys = ["page_id", "parent_id", "rank", "canonical"] #fragile
     supervise_query(pages_query, pages_keys, "pages.csv")
     # returns nil on failure (e.g. timeout)
   end

@@ -31,6 +31,9 @@ def diff(path1, path2, outdir):
             unchanged_count = 0
             field_added_count = 0
             field_removed_count = 0
+            losing_sci_count = 0
+            slug_count = 0
+            deleted_orphan_count = 0
             dup_count = 0
             previous2 = -1
             while True:
@@ -56,6 +59,10 @@ def diff(path1, path2, outdir):
                 # delete page1
                 goneish_writer.writerow(row1)
                 gone_count += 1
+                if not any(row1[1:]):
+                  slug_count += 1
+                elif not row1[1]:
+                  deleted_orphan_count += 1
                 row1 = None         # force read in1
               elif page2 < page1:
                 # insert page2
@@ -71,7 +78,9 @@ def diff(path1, path2, outdir):
                 changed = False
                 field_added = False
                 field_removed = False
-                for i in range(1, len(row1)):
+                losing_sci = False
+                # Not so good, would be better to go by name
+                for i in range(1, min(len(row1), len(row2))):
                   a = row1[i]
                   b = row2[i]
                   if a != b:
@@ -82,9 +91,16 @@ def diff(path1, path2, outdir):
                              or a.startswith(b))):
                       if page1 % 13773 == 0:
                         print("Losing scientific: %s -> %s" % (a, b))
+                      losing_sci = True
                     elif (field == "taxonomicStatus"
                           and a == "accepted"
                           and b == "valid"):
+                      pass
+                    elif b == "?":
+                      # Don't replace useful information with ?
+                      #  (but could parent pointer point to deleted node???)
+                      pass
+                    elif field == "nodeID":
                       pass
                     else:
                       changeish_writer.writerow([page1, field, a, b])
@@ -94,12 +110,15 @@ def diff(path1, path2, outdir):
                         field_removed = True
                       elif b:
                         field_added = True
+                # This isn't quite right.
                 if changed:
                   changed_count += 1
                 elif field_added:
                   field_added_count += 1
                 elif field_removed:
                   field_removed_count += 1
+                elif losing_sci:
+                  losing_sci_count += 1
                 else:
                   unchanged_count += 1
                 row1 = None
@@ -109,9 +128,15 @@ def diff(path1, path2, outdir):
             print("Input 2:       %8s" % in2_count, file=sys.stderr)
             print("New:           %8s" % new_count, file=sys.stderr)
             print("Deleted:       %8s" % gone_count, file=sys.stderr)
+            print("  trivial:     %8s" % slug_count, file=sys.stderr)
+            print("  orphan:      %8s" % deleted_orphan_count, file=sys.stderr)
+            print("  other:       %8s" % (gone_count -
+                                          (slug_count + deleted_orphan_count)),
+                  file=sys.stderr)
             print("Field changed: %8s" % changed_count, file=sys.stderr)
             print("Field added:   %8s" % field_added_count, file=sys.stderr)
             print("Field removed: %8s" % field_removed_count, file=sys.stderr)
+            print("Bad science:   %8s" % losing_sci_count, file=sys.stderr)
             print("Unchanged:     %8s" % unchanged_count, file=sys.stderr)
             print("Duplicate:     %8s" % dup_count, file=sys.stderr)
 

@@ -17,7 +17,7 @@ class Hierarchy
 
   def initialize(assembly)
     @assembly = assembly
-    @chunksize = 100000
+    @chunksize = 500000
   end
 
   def get_graph
@@ -26,6 +26,11 @@ class Hierarchy
 
   def run_query(cql)
     get_graph.run_query(cql)
+  end
+
+  def create_indexes()
+    raise "Failed" unless
+      run_query("CREATE INDEX ON :Page(page_id)")
   end
 
   def load(filename)
@@ -56,22 +61,26 @@ class Hierarchy
   def patch_parents(filename, parent_field = "to")
     puts "Patching parent links according to #{filename}"
     if parent_field == "to"
-      w = "WHERE row.field = 'parentNameUsageID'"
+      # The stupid 'WITH row' is a workaround for a pointless Cypher clause 
+      # syntax restriction 
+      w =   "WITH row WHERE row.field = 'parentNameUsageID'"
+      # We are patching, not initializing, so we'll need to get rid of any 
+      # existing parent relationship
+      w2 =  "OPTIONAL MATCH (page)-[rel:parent]->(:Page)
+             DELETE rel"
     else
       w = ""
+      w2 = ""
     end
-    # The stupid 'WITH row' gets around a pointless Cypher clause syntax restriction
     query = "USING PERIODIC COMMIT
              LOAD CSV WITH HEADERS FROM '#{filename}'
              AS row
-             WITH row
              #{w}
              WITH row,
                   toInteger(row.taxonID) AS page_id,
                   toInteger(row.#{parent_field}) AS parent_id
              MATCH (page:Page {page_id: page_id})
-             OPTIONAL MATCH (page)-[rel:parent]->(:Page)
-             DELETE rel
+             #{w2}
              WITH page, parent_id
              MATCH (parent:Page {page_id: parent_id})
              MERGE (page)-[:parent]->(parent)
@@ -102,6 +111,8 @@ class Hierarchy
     n = r["data"][0][0]
     puts "#{n} #{prop} properties set"
   end
+
+  # Applies patch set to graphdb
 
   def patch(dirname)
     load(File.join(dirname, "new.csv"))
@@ -136,7 +147,11 @@ class Hierarchy
     pag = Paginator.new(get_graph)
     cql = "MATCH (p:Page)
            OPTIONAL MATCH (p:Page)-[:parent]->(q:Page)
-           RETURN p.page_id, q.page_id, p.rank, p.canonical"
+           WITH p.page_id AS taxonID,
+                q.page_id as parentNameUsageID,
+                p.rank as taxonRank,
+                p.canonical as canonicalName
+           RETURN taxonID, parentNameUsageID, taxonRank, canonicalName"
     pag.supervise_query(cql, nil, @chunksize, csv_path)
   end
 

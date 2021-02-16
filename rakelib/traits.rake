@@ -28,7 +28,8 @@ namespace :traits do
 
   desc "Load traits from a traits dump into the graphdb"
   task :load do
-    raise "not yet implemented"
+    assembly = Assembly.assembly(ENV['CONF'])
+    TraitsLoader.new(assembly.get_graph).load_terms(ENV['TERMS'])
   end
 
 end

@@ -60,7 +60,7 @@ locations:
     resource_records: 'config/beta-publishing/resources.json'
 
   beta_repository:
-    url: 'https://beta_repo.eol.org/'
+    url: 'https://beta-repo.eol.org/'
 
   prod_graphdb:
     via_api: prod_publishing

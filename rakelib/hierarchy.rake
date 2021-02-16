@@ -5,6 +5,13 @@ require 'hierarchy'
 
 namespace :hierarchy do
 
+  desc "Create index(es) for dynamic hierarchy"
+  task :create_indexes do
+    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
+    assem = Assembly.assembly(tag)
+    Hierarchy.new(assem).create_indexes()
+  end
+
   desc "Load pages from a file"
   task :load do
     tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
