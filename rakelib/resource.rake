@@ -47,7 +47,7 @@ namespace :resource do
 
   desc "Extract page id map to a file"
   task :map do
-    get_resource.get_page_id_map()
+    get_resource.get_publishing_resource.get_repository_resource.get_page_id_map()
   end
 
   desc "Show miscellaneous information about a resource"

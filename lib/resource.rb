@@ -28,13 +28,6 @@ class Resource
     @config["id"]
   end
 
-  def repository_id
-    rid = @config["repository_id"]
-    puts rid
-    raise "No repository id for resource #{id} = #{name}" unless rid
-    rid
-  end
-
   # ---------- 
 
   def get_workspace             # For this resource, with its multiple presences
@@ -59,7 +52,10 @@ class Resource
   end
 
   def get_repository_resource
-    @location.get_repository_location.get_own_resource_by_id(repository_id)
+    rid = @config["repository_id"]
+    raise "No repository id for resource #{id} = #{name}" unless rid
+    puts rid
+    @location.get_repository_location.get_own_resource_by_id(rid)
   end
 
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
@@ -67,17 +63,15 @@ class Resource
   # Need one of dwca_path (local), dwca_url (remote opendata)
 
   def get_landing_page_url
-    lp_url = @config["landing_page"]
+    lp_url = @config["opendataUrl"]
     unless lp_url
-      lp_url = @config["opendataUrl"]
-      unless lp_url
-        rid = repository_id
-        loc = @location
-        rec = loc.get_resource_record_by_id(rid)
-        raise "No repository resource record for #{name} = #{rid}" \
-          unless rec
-        lp_url = rec["opendataUrl"]
-      end
+      rid = id
+      loc = @location
+      rec = loc.get_resource_record_by_id(rid)
+      raise "No repository resource record for #{name} = #{rid}" \
+        unless rec
+      lp_url = rec["opendataUrl"]
+      raise "No landing page URL for '#{name}'" unless lp_url
     end
     lp_url
   end
@@ -98,7 +92,8 @@ class Resource
   #   convert local unpacked copy of dwca to files for graphdb
 
   def fetch
-    get_dwca.ensure_unpacked          # Extract meta.xml and so on
+    get_publishing_resource.get_repository_resource.
+      get_dwca.ensure_unpacked          # Extract meta.xml and so on
   end
 
   # ---------- Harvesting (stage 3)
@@ -390,11 +385,13 @@ class Resource
     @page_id_map
   end
 
+  # Method applicable to a repository resource
+
   def fetch_page_id_map
     page_id_map = {}
 
     tt = get_dwca.get_table(Claes.taxon)      # a Table
-    if tt.is_column(Property.page_id)
+    if false && tt.is_column(Property.page_id)
       puts "\nThere are page id assignments in the #{tt.location} table"
       # get mapping from taxon_id table
       taxon_id_column = tt.column_for_property(Property.taxon_id)
@@ -404,7 +401,7 @@ class Resource
       end
     else
       repository_url = get_url_for_repository
-      STDERR.puts "Getting page ids for #{repository_id} from #{repository_url}"
+      STDERR.puts "Getting page ids for #{id} from #{repository_url}"
 
       # Fetch the resource's node/resource_pk/taxonid to page id map
       # using the web service; put it in a hash for easy lookup.
@@ -412,7 +409,7 @@ class Resource
 
       # e.g. https://beta-repo.eol.org/service/page_id_map/600
 
-      service_url = "#{repository_url}service/page_id_map/#{repository_id}"
+      service_url = "#{repository_url}service/page_id_map/#{id}"
       STDERR.puts "Request URL = #{service_url}"
 
       service_uri = URI(service_url)
@@ -456,6 +453,7 @@ class Resource
     page_id_map
   end
 
+  # This method is applicable to repository resources
   def get_url_for_repository
     repository_url = @location.get_url
     repository_url += "/" unless repository_url.end_with?("/")

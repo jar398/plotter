@@ -79,12 +79,12 @@ TAG is either 'prod' or 'beta' (never 'test').
 
 Lots of things to test.  For end to end tests we need to look at:
 
-* hierarchy - dynamic hierarchy diff and patch
 * painter - branch painting
-* resource - copy vernaculars into graphdb
 * traits_dumper - copy traits from graphdb to a set of files
 * traits_loader - inverse of traits_dumper
+* resource - copy vernaculars into graphdb
 * cypher - run a single cypher query
-* instance - flush caches
+* instance - flush caches (fallen into disrepair)
+* hierarchy - dynamic hierarchy diff and patch
 
 The 'concordance' feature is not currently working.

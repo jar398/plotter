@@ -74,7 +74,6 @@ class System
 
   def initialize(config)    # config could have been json serialized
     @config = config
-
     @locations = {}
     config["locations"].each do |loc_tag, config|
       @locations[loc_tag] = Location.new(self, config, loc_tag)
@@ -116,17 +115,17 @@ class System
     dwca
   end
 
-  def get_opendata_dwca(opendata_url, resource_name = nil)
-    dwca_url = get_dwca_url(opendata_url)
-    get_dwca(dwca_url, opendata_url, resource_name)
+  def get_opendata_dwca(opendata_lp_url, resource_name = nil)
+    dwca_url = get_dwca_url(opendata_lp_url)
+    get_dwca(dwca_url, opendata_lp_url, resource_name)
   end
 
   # Adapted from harvester app/models/resource/from_open_data.rb.
   # The HTML file is small; no need to cache it.
-  def get_dwca_url(opendata_url)
-    raise "No opendata URL provided" unless opendata_url
+  def get_dwca_url(opendata_lp_url)
+    raise "No DwCA landing page URL provided" unless opendata_lp_url
     begin
-      raw = open(opendata_url)
+      raw = open(opendata_lp_url)
     rescue Net::ReadTimeout => e
       fail_with(e)
     end

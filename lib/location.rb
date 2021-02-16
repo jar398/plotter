@@ -156,29 +156,29 @@ class Location
       raise "Record #{r["name"]} has no id" unless id
       probe = @records_by_id[id]
       if probe
-        r = merge_records(r, probe)
+        r = merge_records(r, probe, id)
       end
       @records_by_id[id] = r
     end
+  end
+
+  def merge_records(record, record2, id)
+    record = record.merge(record2) do |key, oldval, newval|
+      if oldval != newval
+        puts "** Conflict over value of property #{key} of resource #{id} in #{name}"
+        puts "** Keeping configured = #{oldval}, ignoring instance = #{newval}"
+        oldval
+      else
+        newval
+      end
+    end
+    record if record.size > 0
   end
 
   # For graphdb
   def get_resource_record_by_id(id)
     get_resource_records
     @records_by_id[id.to_i]
-  end
-
-  def merge_records(record, record2)
-    record = record.merge(record2) do |key, oldval, newval|
-      if oldval != newval
-        puts "** Conflict over value of resource property #{key}."
-        puts "** Keeping configured = #{oldval}, ignoring publishing = #{newval}."
-        oldval
-      else
-        newval
-      end
-    end
-    record || nil
   end
 
   # Get an id that this particular location will understand

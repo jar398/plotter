@@ -16,7 +16,8 @@ namespace :paint do
     id = id.to_i
     assem = System.system.get_assembly(tag)
     resource = assem.get_resource_by_id(id)
-    puts "Resource #{id} on #{tag} is understood as #{resource.name}"
+    raise "No resource #{id} in #{tag}" unless resource
+    puts "Resource #{id} on #{tag} is understood as '#{resource.name}'"
     Painter.new(resource, assem)
   end
 
