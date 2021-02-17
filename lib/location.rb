@@ -75,14 +75,22 @@ class Location
     @system.get_location(@config["staging"])
   end
   def get_rsync_location
+    assert_repository
     r = @config["rsync_location"]
     raise "No remote rsync location set for #{name}" unless r
     r
   end
   def get_rsync_command
+    assert_repository
     c = @config["rsync_command"] || "rsync -va"
     raise "No remote rsync command set for #{name}" unless c
     c
+  end
+
+  def assert_repository
+    if @config["publishing"] || @config["repository"]
+      raise "Attempt to get staging directory for non-repository #{name}"
+    end
   end
 
   # Stored file looks like {"resources":[{"id":830, ...}, ...], ...}

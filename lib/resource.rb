@@ -30,7 +30,7 @@ class Resource
 
   # ---------- 
 
-  def get_workspace             # For this resource, with its multiple presences
+  def get_workspace             # For this resource
     dir = File.join(@location.get_workspace,
                     "resources",
                     @config["id"].to_s)
@@ -38,7 +38,8 @@ class Resource
     dir
   end
 
-  def get_staging_dir           # Local staging area (before rsync)
+  def get_staging_dir           # Local repo-related staging area (before rsync)
+    @location.assert_repository
     dir = File.join(@location.get_workspace,
                     "staging",
                     @config["id"].to_s)
@@ -71,7 +72,7 @@ class Resource
       raise "No repository resource record for #{name} = #{rid}" \
         unless rec
       lp_url = rec["opendataUrl"]
-      raise "No landing page URL for '#{name}'" unless lp_url
+      raise "No landing page URL for '#{name}' in #{@location.name}" unless lp_url
     end
     lp_url
   end
@@ -92,8 +93,7 @@ class Resource
   #   convert local unpacked copy of dwca to files for graphdb
 
   def fetch
-    get_publishing_resource.get_repository_resource.
-      get_dwca.ensure_unpacked          # Extract meta.xml and so on
+    get_dwca.ensure_unpacked          # Extract meta.xml and so on
   end
 
   # ---------- Harvesting (stage 3)
@@ -102,77 +102,83 @@ class Resource
   #  in app/models/resource_harvester.rb
 
   def harvest
-    vt = get_dwca.get_table(Claes.vernacular_name)
-    if vt
-      harvest_table(vt,
-                    [Property.page_id,
-                     Property.vernacular_string,
-                     Property.language_code,
-                     Property.is_preferred_name])
+    rr = get_publishing_resource.get_repository_resource
+    vern_table = rr.get_dwca.get_table(Claes.vernacular_name)
+    if vern_table
+      rr.harvest_table(vern_table,
+                       [Property.page_id,
+                        Property.vernacular_string,
+                        Property.language_code,
+                        Property.is_preferred_name])
     end
   end
 
-  def harvest_table(vt, props)
+  # Map table from DwCA to table suitable for ingestion using LOAD CSV.
+  # Convert column names to "pet names" from the Property objects.
+
+  # Table for now is always a vernaculars table, but props tells us
+  # which properties to extract (what the columns will be)
+
+  def harvest_table(htable, out_props)
     fetch                       # Get the DwCA and unpack it
-    props = vt.get_property_vector    # array of Property objects
-    raise "No properties (columns)" unless props
-    puts "# Found these columns:\n  #{props.collect{|p|(p ? p.name : '?')}}"
+    in_props = htable.get_property_vector    # array of Property objects
+    raise "No properties (columns) for table" unless in_props
+    puts "Input properties are: #{in_props.collect{|p|p.name}}"
 
-    # For resource 40, input columns are vernacularName, language, taxonID
-
-    if props.include?(Property.page_id)
-      # The output file wants a page_id.  If there is no page_id column,
-      # figure out the page_id from the taxon_id column.
-      page_id_position = vt.column_for_property(Property.page_id)
-      taxon_id_position = vt.column_for_property(Property.taxon_id)
-      if page_id_position != nil
-        puts "# Found page id column in input table at position #{page_id_position}"
-        puts "#  Will use page id column from this input"
-      else
-        if taxon_id_position == nil
-          raise("Found neither taxon nor page id in input table")
-        end
-        puts "# Page id column not found in input table"
-        puts "#  Will use page id map from taxon file or content server"
-        get_page_id_map
-      end
-    end
-
-    # Where these columns are in the input
-    mapping = props.collect do |prop|
-      [prop, vt.column_for_property(prop)]
-    end
-    puts "# Input position for each output position: #{mapping.collect{|x,y|y}}"
-
-    # Staging directory for this kind of task
+    # Output table goes in staging area for this kind of task
     dir = File.join(get_staging_dir, "vernaculars")
     FileUtils.mkdir_p(dir)
     fname = "vernaculars.csv"
-    out_table = Table.new(property_vector: props,
+    out_table = Table.new(property_vector: out_props,
                           location: fname,
                           path: File.join(dir, fname))
 
+    # Prepare for mapping node ids to page ids, which we do if we have
+    # a node id and want a page id
+    taxon_id_position = htable.column_for_property(Property.taxon_id)
+    page_id_position = htable.column_for_property(Property.page_id)
+    translate_ids = false
+    if in_props.include?(Property.taxon_id) && out_props.include?(Property.page_id)
+      puts "# Will translate node ids to page ids"
+      get_page_id_map 
+      translate_ids = true
+    end
+
+    # Where the output columns are in the input
+    mapping = out_props.collect do |out_prop|
+      col = htable.column_for_property(out_prop)
+      unless col ||
+             (translate_ids && out_prop == Property.page_id) ||
+             out_prop == Property.is_preferred_name
+        raise "No input column for needed output property #{out_prop.name}"
+      end
+      [out_prop, col]
+    end
+    puts "# Input position for each output position: #{mapping.collect{|x,y|y}}"
+
+    # For resource 40, input columns are vernacularname, language, taxonid
+    # (but check the meta.xml in case the header changes)
+
     counter = 0
-    csv_in = vt.open_csv_in
+    csv_in = htable.open_csv_in
     csv_out = out_table.open_csv_out
     csv_in.each do |row_in|
-
       row_out = mapping.collect do |pair|
-        (prop, in_pos) = pair
+        (out_prop, in_pos) = pair
         # in_pos = column of this property in the input table, if any
         if in_pos != nil
           value = row_in[in_pos]
           if value
             value
           else
-            puts "** No #{prop.name} at row #{counter}" if counter < 10
-            if prop == Property.is_preferred_name
+            puts "** No #{out_prop.name} at row #{counter}" if counter < 10
+            if out_prop == Property.is_preferred_name
               value = 0
             else
               -123
             end
           end
-        elsif prop == Property.page_id
+        elsif out_prop == Property.page_id
           # No column for page id.  Map taxon id to it.
           taxon_id = row_in[taxon_id_position]
           if not taxon_id
@@ -185,11 +191,11 @@ class Resource
             puts "** No page id for taxon id #{taxon_id}" if counter < 10
             -345
           end
-        elsif prop == Property.is_preferred_name
+        elsif out_prop == Property.is_preferred_name
           # Default value associated with this property
           1
         else
-          puts "** Need column for property #{prop.name}" if counter < 10
+          puts "** Need column for property #{out_prop.name}" if counter < 10
           -456
         end
       end
@@ -207,23 +213,26 @@ class Resource
   # For staging area location and structure see ../README.md
 
   def get_staging_url_prefix    # specific to this resource
+    @location.assert_repository
     prefix_all = @location.get_staging_location.get_url
     "#{prefix_all}#{id}-"
   end
 
   def get_staging_rsync_prefix    # specific to this resource
+    @location.assert_repository
     prefix_all = @location.get_staging_location.get_rsync_location
-    # maybe switch to - instead of / ?
     "#{prefix_all}#{id}-"
   end
 
   # Copy the staging/TAG.PID.RID/ directory out to the staging host.
 
   def stage(instance = nil)
+    @location.assert_repository
     copy_to_stage("vernaculars")
   end
 
   def copy_to_stage(relative)
+    @location.assert_repository
     local = File.join(get_staging_dir, relative)
     remote = "#{get_staging_rsync_prefix}#{relative}"
     command = @location.get_staging_location.get_rsync_command
@@ -233,14 +242,6 @@ class Resource
     STDERR.puts("# Copying #{local} to #{remote}")
     stdout_string, status = Open3.capture2("#{command} #{local}/ #{remote}/")
     puts "Status: [#{status}] stdout: [#{stdout_string}]"
-  end
-
-  # Get a resource id that the graphdb will understand correctly.
-
-  def get_id_for_graphdb(assembly)
-    id = @config["id"]
-    raise "No graphdb resource id for name #{self.name}" unless id
-    id
   end
 
   # For each directory in a tree, write a manifest.json that lists the
@@ -261,6 +262,47 @@ class Resource
     end
   end
 
+  # ---------- Processing stage 5: compute delta
+
+  # TBD
+
+  # ---------- Processing stage 6: erase previous version's stuff
+
+  def count; count_vernaculars; end
+
+  def count_vernaculars
+    query = "MATCH (r:Resource {resource_id: #{id}})
+             MATCH (v:Vernacular)-[:supplier]->(r)
+             RETURN COUNT(v)
+             LIMIT 1"
+    r = @location.get_graph.run_query(query)
+    count = r ? r["data"][0][0] : "?"
+    puts("#{count} vernacular records")
+  end
+
+  def erase
+    erase_vernaculars
+  end
+
+  def erase_vernaculars
+    query = "MATCH (r:Resource {resource_id: #{id}})
+             MATCH (v:Vernacular)-[:supplier]->(r)
+             DETACH DELETE v
+             RETURN COUNT(v)
+             LIMIT 10000000"
+    r = @location.get_graph.run_query(query)
+    if r
+      count = r["data"][0][0]
+      STDERR.puts("Erased #{count} relationships")
+      count
+    else
+      puts "No query result"
+      0
+    end
+  end
+
+  # ---------- Processing stage 7: graphdb LOAD CSV from stage
+
   # Similar to eol_website app/models/trait_bank/slurp.rb
   def publish
     #   Use two LOAD CSV commands to move information from the
@@ -274,65 +316,19 @@ class Resource
     publish_vernaculars
   end
 
-  # ---------- Processing stage 5: compute delta
-
-  # TBD
-
-  # ---------- Processing stage 6: erase previous version's stuff
-
-  def count(assembly); count_vernaculars(assembly); end
-
-  def count_vernaculars(assembly)
-    id = get_id_for_graphdb(assembly)
-    query = "MATCH (r:Resource {resource_id: #{id}})
-             MATCH (v:Vernacular)-[:supplier]->(r)
-             RETURN COUNT(v)
-             LIMIT 1"
-    r = assembly.get_graph.run_query(query)
-    count = r ? r["data"][0][0] : "?"
-    puts("#{count} vernacular records")
-  end
-
-  def erase(assembly)
-    erase_vernaculars(assembly)
-  end
-
-  def erase_vernaculars(assembly)
-    id = get_id_for_graphdb(assembly)
-    query = "MATCH (r:Resource {resource_id: #{id}})
-             MATCH (v:Vernacular)-[:supplier]->(r)
-             DETACH DELETE v
-             RETURN COUNT(v)
-             LIMIT 10000000"
-    r = assembly.get_graph.run_query(query)
-    if r
-      count = r["data"][0][0]
-      STDERR.puts("Erased #{count} relationships")
-      count
-    else
-      puts "No query result"
-      0
-    end
-  end
-
-  # ---------- Processing stage 7: graphdb LOAD CSV from stage
-
-  def publish
-    publish_vernaculars
-  end
-
-  def publish_vernaculars(assembly) # slurp
-    url = "#{get_staging_url_prefix}vernaculars/vernaculars.csv"
+  def publish_vernaculars     # slurp
+    rr = get_publishing_resource.get_repository_resource
+    url = "#{rr.get_staging_url_prefix}vernaculars/vernaculars.csv"
     puts "# Staging URL is #{url}"
 
-    id_in_graph = get_id_for_graphdb(assembly)
+    id_in_graph = id
 
     # Make sure the resource node is there
-    assembly.get_graph.run_query(
-      'MERGE (r:Resource {resource_id: #{id_in_graph}
-                          name: "#{self.name}"})
+    @location.get_graph.run_query(
+      "MERGE (r:Resource {resource_id: #{id_in_graph},
+                          name: \"#{self.name}\"})
        RETURN r.resource_id
-       LIMIT 1')
+       LIMIT 1")
 
     # Need to chunk this.
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
@@ -346,7 +342,7 @@ class Resource
                    (r)
              RETURN COUNT(row)
              LIMIT 1"
-    r = assembly.get_graph.run_query(query)
+    r = @location.get_graph.run_query(query)
     count = r ? r["data"][0][0] : 0
     STDERR.puts("Merged #{count} relationships from #{url}")
   end
@@ -462,12 +458,12 @@ class Resource
 
   def info
     puts "Name: #{name}"
-    puts "Workspace: #{get_workspace}"
-    puts "Staging: #{get_staging_dir}"
     puts "Id in graphdb: #{id}"
+    puts "Workspace: #{get_workspace}"
     pr = get_publishing_resource
     puts "Id in publishing instance: #{pr.id}"
     rr = pr.get_repository_resource
+    puts "Staging: #{rr.get_staging_dir}"
     puts "Id in repository instance: #{rr.id}"
     puts "Opendata landing page URL: #{rr.get_landing_page_url}"
   end

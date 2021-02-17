@@ -14,30 +14,34 @@ namespace :resource do
     get_assembly.get_resource_by_id(id.to_i)
   end
 
+  def get_repo                  # utility
+    get_resource.get_publishing_resource.get_repository_resource
+  end
+
   desc "Load resource from opendata and store vernaculars on staging site"
   task :prepare do 
     get_resource.harvest
-    get_resource.stage
+    get_repo.stage
   end
 
   desc "Put onto staging site"
   task :stage do
-    get_resource.stage(get_assembly)
+    get_repo.stage
   end
 
   desc "Erase all of this resource's contributed information from graphdb"
   task :erase do
-    get_resource.erase(get_assembly)
+    get_resource.erase
   end
 
   desc "Load into graphdb from staging site"
   task :publish do
-    get_resource.publish(get_assembly)
+    get_resource.publish
   end
 
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
-    get_resource.fetch
+    get_repo.fetch
   end
 
   desc "Number of ... whats?"

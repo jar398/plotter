@@ -156,7 +156,7 @@ class Table
       (0...@ignore_lines).each do |counter|
         row = csv.shift
         @header = row unless @header
-        puts "discarding header row #{row}"
+        puts "# discarding header row #{row}"
       end
     else
       raise "Found neither #{path_part} nor #{chunks_dir}"
