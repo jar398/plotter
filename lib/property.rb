@@ -34,7 +34,14 @@ class Property < Denotable
 
                # Trait metadata
                "starts_at" => "https://eol.org/schema/terms/starts_at",
-               "stops_at" => "https://eol.org/schema/terms/stops_at"}
+               "stops_at" => "https://eol.org/schema/terms/stops_at",
+
+               # Resource list sync
+               "label" => "http://www.w3.org/2000/01/rdf-schema#label",
+               "resource_id" => "data:,EOL resource id",
+               "resource_version_id" => "data:,EOL resource version id"
+              }
+
     MAPPING.each do |name, uri|
       Property.get(uri, name)
     end
@@ -62,6 +69,11 @@ class Property < Denotable
     # Predicate property on MetaData nodes
     def starts_at; named("starts_at"); end
     def stops_at; named("stops_at"); end
+
+    # Resource properties
+    def label; named("label"); end
+    def resource_id; named("resource_id"); end
+    def resource_version_id; named("resource_version_id"); end
 
   end
 end

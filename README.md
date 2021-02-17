@@ -1,5 +1,7 @@
 # 'Plotter' - make a graph
 
+2021-02-17  work in progress, this doc might be obsolete
+
 EOL related utilities.
 
 Scripts are invoked using `rake`.

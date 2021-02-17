@@ -16,39 +16,9 @@ class Location
     File.join(@system.get_workspace, @name)
   end
 
-  def get_graph
-    return @graph if @graph
-
-    url = @config["neo4j"]
-    if url
-      @graph = Graph.via_neography(url)
-    else
-      v3api = @system.get_location(@config["via_api"])
-      raise "no api" unless v3api
-      @graph = v3api.proxy_graphdb
-    end
-    @graph
-  end
-
-  def proxy_graphdb
-    token_path = @config["update_token_file"] ||
-                 @config["token_file"]
-    token = File.read(token_path).strip
-    puts "# Graphdb proxy URL is #{get_url}"
-    Graph.via_http(get_url, token)
-  end
-
   # for workspace and concordance...
   def get_path
     return @config["path"]
-  end
-
-  # If this is a graphdb, return the associated publishing instance
-
-  def get_publishing_location
-    probe = @config["publishing"]    # Hack for graphdb
-    raise "No publishing instance associated with location #{name}" unless probe
-    @system.get_location(probe)
   end
 
   # If this is a publishing instance, return the associated repository instance
@@ -59,7 +29,7 @@ class Location
     @system.get_location(probe)
   end
 
-  # Pub/repo HTTP endpoint only.  For resource lists, page id maps
+  # Pub/repo HTTP endpoint.  For resource lists, page id maps
   # (repo), neo4j proxy (pub).  Also used for staging file name LOAD CSV?
 
   def get_url
@@ -68,24 +38,77 @@ class Location
     url
   end
 
-  # Staging locations - for publishing instances (? think about this).
-  # i.e. same staged content can be pushed to multiple graphdbs.
-  # A local directory and a remote directory that are synchronized.
-  def get_staging_location
-    @system.get_location(@config["staging"])
+  # ----------------------------------------------------------------------
+  # Export to staging server.
+
+  # For a given graphdb, files from up to three local export/
+  # directories (graphdb, publishing, repository) get merged when
+  # exported to the staging server.  But each graphdb has its own
+  # staging area, making export a recombination event.
+
+  # Where to put files locally before they go to staging server.
+
+  def get_export_dir
+    dir = File.join(get_workspace, "export", name)
+    FileUtils.mkdir_p(dir)
+    dir
   end
-  def get_rsync_location
-    assert_repository
-    r = @config["rsync_location"]
-    raise "No remote rsync location set for #{name}" unless r
-    r
+
+  # Copy from local export area to staging server.  (i.e. 'stage' file/files.)
+  # Relative should not end in a '/'.
+
+  def export(relative)
+    local = File.join(get_export_dir, relative)
+    staging = get_staging_location
+    remote = "#{staging.get_rsync_specifier}/#{relative}"
+    command = staging.get_rsync_command
+    prepare_manifests(local)
+    STDERR.puts("# Copying #{local} to #{remote}")
+    stdout_string, status = Open3.capture2("#{command} #{local}/ #{remote}/")
+    STDERR.puts("# Status: [#{status}] stdout: [#{stdout_string}]")
+    # This is how we access it from a LOAD CSV:
+    staging_url(relative)
+  end
+
+  # For staging area location and structure see ../README.md
+
+  def staging_url(relative)
+    "#{get_staging_location.get_url}/#{name}/#{relative}"
+  end
+
+  # For each directory in a tree, write a manifest.json that lists the
+  # files in the directory.  This makes the tree traversable by a
+  # web client.
+
+  def prepare_manifests(path)
+    if File.directory?(path)
+      # Prepare one manifest
+      names = Dir.glob("*", base: path)
+      if path.end_with?(".chunks")
+        man = File.join(path, "manifest.json")
+        puts "Writing #{man}"
+        File.write(man, names)
+      end
+      # Recur
+      names.each {|name| prepare_manifests(File.join(path, name))}
+    end
+  end
+
+  def get_staging_location
+    @system.get_location("staging")
+  end
+  def get_rsync_specifier
+    r = @config["rsync_specifier"]
+    raise "No remote rsync specifier set for #{name}" unless r
+    "#{r}/staging"
   end
   def get_rsync_command
-    assert_repository
     c = @config["rsync_command"] || "rsync -va"
     raise "No remote rsync command set for #{name}" unless c
     c
   end
+
+  # ----------------------------------------------------------------------
 
   def assert_repository
     if @config["publishing"] || @config["repository"]
@@ -139,21 +162,11 @@ class Location
     finish_records(records)    # returns a ... hash? .values ?
   end
 
-  # Parse and cache a graphdb's collection of resource records
-  # Array -> nil (for side effects)
-  def get_resource_records
-    return @records_by_id if @records_by_id
-    records = get_publishing_location.get_own_resource_records
-    # records is a hash
-    finish_records(records.values)
-  end
-
   def finish_records(records)  # records must be a vector
     @records_by_id = {}
     process_records(records)
     configured = @config["resources"]
     process_records(configured) if configured
-    puts "#{name}: #{@records_by_id.length} resources"
     @records_by_id
   end
 
@@ -183,39 +196,32 @@ class Location
     record if record.size > 0
   end
 
-  # For graphdb
+  # This is overridden in trait_bank
+  def get_resource_records
+    get_own_resource_records
+  end
+
+  # For graphdb... and ... other kinds of locations too?
+  # Overridden in trait_bank.rb
   def get_resource_record_by_id(id)
     get_resource_records
     @records_by_id[id.to_i]
   end
 
-  # Get an id that this particular location will understand
-  # ???
-
-  def id_for_resource(name)
-    probe = @config["publishing"]    # Hack for graphdb
-    if probe
-      loc = @system.get_location(probe)
-      raise "There is no publishing location #{loc}" unless loc
-      id = loc.id_for_resource(name)
-      puts "There is no id for #{name} at #{loc}" unless id
-      id
-    else
-      rec = get_resource_record(name)
-      if rec
-        rec["id"]
-      else
-        puts "There is no resource record for #{id} at #{loc}"
-      end
-    end
-  end
-
-  # Moved out of instance.rb
-
   # For ID= on rake command line... get graphdb resource
   def get_resource_by_id(id)
     record = get_resource_record_by_id(id)
     resource_from_record(record) if record
+  end
+
+  def resource_from_record(record)
+    id = record["id"]
+    res = @resources_by_id[id]
+    unless res
+      res = Resource.new(record, self)
+      @resources_by_id[id] = res
+    end
+    res
   end
 
   # For pub/repo resources
@@ -231,14 +237,13 @@ class Location
     rec["name"]
   end
 
-  def resource_from_record(record)
-    id = record["id"]
-    res = @resources_by_id[id]
-    unless res
-      res = Resource.new(record, self)
-      @resources_by_id[id] = res
-    end
-    res
+  # Invoke this on a publishing instance
+  def proxy_graphdb
+    token_path = @config["update_token_file"] ||
+                 @config["token_file"]
+    token = File.read(token_path).strip
+    puts "# Graphdb proxy URL is #{get_url}"
+    Graph.via_http(get_url, token)
   end
 
 end

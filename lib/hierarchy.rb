@@ -15,13 +15,13 @@
 
 class Hierarchy
 
-  def initialize(assembly)
-    @assembly = assembly
+  def initialize(trait_bank)
+    @trait_bank = trait_bank
     @chunksize = 500000
   end
 
   def get_graph
-    @assembly.get_graph
+    @trait_bank.get_graph
   end
 
   def run_query(cql)

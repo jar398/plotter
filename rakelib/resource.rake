@@ -3,15 +3,15 @@ require 'resource'
 
 namespace :resource do
 
-  def get_assembly
+  def get_trait_bank
     tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
-    System.system.get_assembly(tag)
+    System.system.get_trait_bank(tag)
   end
 
   def get_resource
     id = ENV['ID'] || raise("Please provide env var ID")
     tag = ENV['CONF'] || raise("Please provide env var CONF")
-    get_assembly.get_resource_by_id(id.to_i)
+    get_trait_bank.get_resource_by_id(id.to_i)
   end
 
   def get_repo                  # utility
@@ -46,7 +46,7 @@ namespace :resource do
 
   desc "Number of ... whats?"
   task :count do
-    get_resource.count(get_assembly)
+    get_resource.count(get_trait_bank)
   end
 
   desc "Extract page id map to a file"

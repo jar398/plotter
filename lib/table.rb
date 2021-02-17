@@ -70,6 +70,7 @@ class Table
 
   def claes; @claes; end
   def location; @location || File.basename(@path); end
+  def path; @path; end
 
   # @property_vector is an array of Property objects
 
@@ -130,13 +131,14 @@ class Table
   def fetch                     # get_what
     raise("No URL for this table: #{@path}") unless @url
     raise("No local path for this table: #{@url}") unless @path
-    raise("NYI: copy #{@url} to #{@path}")
+    raise("NYI: fetch #{@path} from #{@url}")
   end
 
   def store
-    raise("No stage for this table: #{@path}") unless @stage
-    raise("No local path for this table: #{@stage}") unless @path
+    raise("No stage for this table: #{@location}") unless @stage
+    raise("No local path for this table: #{@location}") unless @path
     raise("NYI: copy #{@path} to #{@stage}")
+    # something.copy_to_stage ... ?
   end
 
   def open_csv_in(part_path = @path)

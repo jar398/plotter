@@ -33,18 +33,22 @@ class Resource
   def get_workspace             # For this resource
     dir = File.join(@location.get_workspace,
                     "resources",
+                    id.to_s)
+    FileUtils.mkdir_p(dir)
+    dir
+  end
+
+  def get_export_dir   # Put files here for subsequent export to staging
+    @location.assert_repository
+    dir = File.join(@location.get_export_dir,
+                    "resources",
                     @config["id"].to_s)
     FileUtils.mkdir_p(dir)
     dir
   end
 
-  def get_staging_dir           # Local repo-related staging area (before rsync)
-    @location.assert_repository
-    dir = File.join(@location.get_workspace,
-                    "staging",
-                    @config["id"].to_s)
-    FileUtils.mkdir_p(dir)
-    dir
+  def staging_url(relative)
+    @location.staging_url("resources/#{id}/#{relative}")
   end
 
   # Assume ids are consistent between graphdb and publishing
@@ -55,7 +59,6 @@ class Resource
   def get_repository_resource
     rid = @config["repository_id"]
     raise "No repository id for resource #{id} = #{name}" unless rid
-    puts rid
     @location.get_repository_location.get_own_resource_by_id(rid)
   end
 
@@ -126,7 +129,7 @@ class Resource
     puts "Input properties are: #{in_props.collect{|p|p.name}}"
 
     # Output table goes in staging area for this kind of task
-    dir = File.join(get_staging_dir, "vernaculars")
+    dir = File.join(get_export_dir, "vernaculars")
     FileUtils.mkdir_p(dir)
     fname = "vernaculars.csv"
     out_table = Table.new(property_vector: out_props,
@@ -210,56 +213,11 @@ class Resource
   # ---------- Processing stage 4: copy workspace to staging 
   # area on server
 
-  # For staging area location and structure see ../README.md
-
-  def get_staging_url_prefix    # specific to this resource
-    @location.assert_repository
-    prefix_all = @location.get_staging_location.get_url
-    "#{prefix_all}#{id}-"
-  end
-
-  def get_staging_rsync_prefix    # specific to this resource
-    @location.assert_repository
-    prefix_all = @location.get_staging_location.get_rsync_location
-    "#{prefix_all}#{id}-"
-  end
-
   # Copy the staging/TAG.PID.RID/ directory out to the staging host.
 
-  def stage(instance = nil)
+  def stage
     @location.assert_repository
-    copy_to_stage("vernaculars")
-  end
-
-  def copy_to_stage(relative)
-    @location.assert_repository
-    local = File.join(get_staging_dir, relative)
-    remote = "#{get_staging_rsync_prefix}#{relative}"
-    command = @location.get_staging_location.get_rsync_command
-
-    prepare_manifests(local)
-
-    STDERR.puts("# Copying #{local} to #{remote}")
-    stdout_string, status = Open3.capture2("#{command} #{local}/ #{remote}/")
-    puts "Status: [#{status}] stdout: [#{stdout_string}]"
-  end
-
-  # For each directory in a tree, write a manifest.json that lists the
-  # files in the directory.  This makes the tree traversable from by a
-  # web client.
-
-  def prepare_manifests(path)
-    if File.directory?(path)
-      # Prepare one manifest
-      names = Dir.glob("*", base: path)
-      if path.end_with?(".chunks")
-        man = File.join(path, "manifest.json")
-        puts "Writing #{man}"
-        File.write(man, names)
-      end
-      # Recur
-      names.each {|name| prepare_manifests(File.join(path, name))}
-    end
+    @location.export(File.join(id.to_s, relative))
   end
 
   # ---------- Processing stage 5: compute delta
@@ -317,8 +275,7 @@ class Resource
   end
 
   def publish_vernaculars     # slurp
-    rr = get_publishing_resource.get_repository_resource
-    url = "#{rr.get_staging_url_prefix}vernaculars/vernaculars.csv"
+    url = staging_url("vernaculars/vernaculars.csv")
     puts "# Staging URL is #{url}"
 
     id_in_graph = id
@@ -457,14 +414,16 @@ class Resource
   end
 
   def info
-    puts "Name: #{name}"
     puts "Id in graphdb: #{id}"
+    puts "Name: #{name}"
     puts "Workspace: #{get_workspace}"
     pr = get_publishing_resource
+    puts "Stage: #{staging_url(".")}"
     puts "Id in publishing instance: #{pr.id}"
     rr = pr.get_repository_resource
-    puts "Staging: #{rr.get_staging_dir}"
     puts "Id in repository instance: #{rr.id}"
+    puts "Export: #{rr.get_export_dir}"
+    puts "Repo stage: #{rr.staging_url(".")}"
     puts "Opendata landing page URL: #{rr.get_landing_page_url}"
   end
 

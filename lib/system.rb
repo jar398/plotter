@@ -8,9 +8,10 @@
 #   instances  - publishing + repository locations
 #   assemblies - pairing of an instance with a graphdb
 
-require 'location'
-require 'resource'
 require 'nokogiri'
+require 'location'
+require 'trait_bank'
+require 'resource'
 
 # Singleton, I suppose...
 
@@ -27,6 +28,7 @@ class System
       @system                   # singleton I suppose
     end
 
+    # Utility to copy a single file from WWW to file system
     def copy_from_internet(url, path)
       workspace = File.basename(path)
       # Download the archive file from Internet if it's not
@@ -76,7 +78,12 @@ class System
     @config = config
     @locations = {}
     config["locations"].each do |loc_tag, config|
-      @locations[loc_tag] = Location.new(self, config, loc_tag)
+      # Kludge!  There has to be a better way to determine this
+      if config.include?("neo4j") || config.include?("via_api")
+        @locations[loc_tag] = TraitBank.new(self, config, loc_tag)
+      else
+        @locations[loc_tag] = Location.new(self, config, loc_tag)
+      end
     end
     @dwcas = {}
   end
@@ -87,10 +94,10 @@ class System
     dir
   end
 
-  def get_assembly(tag)
-    raise("No assembly name provided") unless tag
+  def get_trait_bank(tag)
+    raise("No trait bank name provided") unless tag
     loc = get_location(tag)
-    raise "No such assembly: #{tag}" unless loc
+    raise "No such trait bank: #{tag}" unless loc
     return loc
   end
 

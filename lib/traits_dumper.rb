@@ -50,8 +50,8 @@ require 'graph'
 
 class TraitsDumper
 
-  def self.dump_clade(clade_page_id, tempdir, chunksize, query_fn, dest)
-    new(clade_page_id, tempdir, chunksize, query_fn).dump_traits(dest)
+  def self.dump(graph, dest, clade_page_id = nil, chunksize = nil, tempdir = nil)
+    new(graph, chunksize, tempdir).dump_traits(dest, clade_page_id)
   end
 
   # Store parameters in instance so they don't have to be passed
@@ -62,23 +62,24 @@ class TraitsDumper
   # use neography, or the EOL web API, or any other method for
   # executing CQL queries.
 
-  def initialize(clade_page_id, tempdir, chunksize, graph)
-    @clade = (clade_page_id ? Integer(clade_page_id) : nil)
-    @tempdir = tempdir || File.join("/tmp", default_basename(@clade))
-    @chunksize = chunksize.to_i if chunksize
+  def initialize(graph, chunksize = 10000, tempdir = nil)
     @graph = graph
+    @chunksize = chunksize
+    @tempdir = tempdir
   end
 
   # dest is name of zip file to be written, or nil for default
-  def dump_traits(dest)
-    paths = [emit_inferred,
-             emit_terms,
-             emit_pages,
-             emit_traits,
-             emit_metadatas]
+  def dump_traits(dest, clade_page_id = nil)
+    clade = (clade_page_id ? Integer(clade_page_id) : nil) # kludge
+    @tempdir = @tempdir || File.join("/tmp", default_basename(clade))
+    paths = [emit_terms,
+             emit_pages(clade),
+             emit_inferred(clade),
+             emit_traits(clade),
+             emit_metadatas(clade)]
     if not paths.include?(nil)
       dest = "." unless dest
-      dest = File.join(dest, default_basename(@clade) + ".zip") if
+      dest = File.join(dest, default_basename(clade) + ".zip") if
         File.directory?(dest)
       write_zip(paths, dest) 
     end
@@ -111,9 +112,9 @@ class TraitsDumper
 
   # Return query fragment for lineage (clade, page, ID) restriction,
   # if there is one.
-  def transitive_closure_part
-    if @clade
-      ", (page)-[:parent*]->(clade:Page {page_id: #{@clade}})"
+  def transitive_closure_part(clade)
+    if clade
+      ", (page)-[:parent*]->(clade:Page {page_id: #{clade}})"
     else
       ""
     end
@@ -148,9 +149,9 @@ class TraitsDumper
   # Ray Ma has pointed out that the traits dump contains page ids
   # that are not in this set, e.g. for interaction traits.
 
-  def emit_pages
+  def emit_pages(clade)
     pages_query =
-     "MATCH (page:Page) #{transitive_closure_part}
+     "MATCH (page:Page) #{transitive_closure_part(clade)}
       WHERE page.canonical IS NOT NULL
       OPTIONAL MATCH (page)-[:parent]->(parent:Page)
       RETURN page.page_id, parent.page_id, page.rank, page.canonical"
@@ -161,7 +162,7 @@ class TraitsDumper
 
   #---- Query: Traits (trait records)
 
-  def emit_traits
+  def emit_traits(clade)
     filename = "traits.csv"
     path = File.join(@tempdir, filename)
     if File.exist?(path)
@@ -190,7 +191,7 @@ class TraitsDumper
       next if is_attack?(predicate)
       traits_query =
        "MATCH (t:Trait)<-[:trait]-(page:Page)
-              #{transitive_closure_part}
+              #{transitive_closure_part(clade)}
         WHERE page.canonical IS NOT NULL
         MATCH (t)-[:predicate]->(predicate:Term {uri: '#{predicate}'})
         OPTIONAL MATCH (t)-[:supplier]->(r:Resource)
@@ -251,7 +252,7 @@ class TraitsDumper
   # style does not encourage procedural abstraction (or at least, I
   # don't know how one properly share code here, in idiomatic Ruby).
 
-  def emit_metadatas
+  def emit_metadatas(clade)
     filename = "metadata.csv"
     path = File.join(@tempdir, filename)
     if File.exist?(path)
@@ -271,7 +272,7 @@ class TraitsDumper
       metadata_query = 
         "MATCH (m:MetaData)<-[:metadata]-(t:Trait),
               (t)<-[:trait]-(page:Page)
-              #{transitive_closure_part}
+              #{transitive_closure_part(clade)}
         WHERE page.canonical IS NOT NULL
         MATCH (m)-[:predicate]->(predicate:Term),
               (t)-[:predicate]->(metadata_predicate:Term {uri: '#{predicate}'})
@@ -301,7 +302,7 @@ class TraitsDumper
     run_query(predicates_query)["data"].map{|row| row[0]}
   end
 
-  def emit_inferred
+  def emit_inferred(clade)
     filename = "inferred.csv"
     path = File.join(@tempdir, filename)
     if File.exist?(path)
@@ -311,7 +312,7 @@ class TraitsDumper
     inferred_keys = ["page_id", "inferred_trait"]
     inferred_query = 
        "MATCH (page:Page)-[:inferred_trait]->(trait:Trait)
-              #{transitive_closure_part}
+              #{transitive_closure_part(clade)}
         RETURN page.page_id AS page_id, trait.eol_pk AS trait"
     supervise_query(inferred_query, inferred_keys, filename)
   end

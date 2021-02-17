@@ -10,7 +10,7 @@ class Registry
       @index_by_uri = {} unless @index_by_uri
       @index_by_name = {} unless @index_by_name
       raise("No URI") unless obj.uri
-      raise("Bad URI: #{uri}") unless obj.uri.include?("://")
+      raise("Bad URI: #{obj.uri}") unless obj.uri.include?(":")
 
       if @index_by_uri[obj.uri] == nil
         @index_by_uri[obj.uri] = obj

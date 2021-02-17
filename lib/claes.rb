@@ -7,7 +7,8 @@ class Claes < Denotable
   class << self
 
     MAPPING = {"Taxon" => "http://rs.tdwg.org/dwc/terms/Taxon",
-               "VernacularName" => "http://rs.gbif.org/terms/1.0/VernacularName"}
+               "VernacularName" => "http://rs.gbif.org/terms/1.0/VernacularName",
+               "Resource" => "data:,EOL source resource"}
     MAPPING.each do |name, uri|
       Claes.get(uri, name)
     end
@@ -19,6 +20,7 @@ class Claes < Denotable
     # Particular classes mentioned in the ruby code
     def taxon; named("Taxon"); end
     def vernacular_name; named("VernacularName"); end
+    def resource; named("Resource"); end
 
   end
 

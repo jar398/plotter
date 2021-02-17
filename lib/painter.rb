@@ -44,14 +44,14 @@ class Painter
 
   LIMIT = 1000000
 
-  def initialize(resource, assembly)
+  def initialize(resource, trait_bank)
     @resource = resource
     @chunksize = 10000
-    @assembly = assembly
+    @trait_bank = trait_bank
   end
 
   def get_graph
-    @assembly.get_graph
+    @trait_bank.get_graph
   end
 
   def run_query(cql)
@@ -59,7 +59,7 @@ class Painter
   end
 
   def get_id
-    @resource.get_id_for_graphdb(@assembly)
+    @resource.get_id_for_graphdb(@trait_bank)
   end
 
   # Infer, stage, and publish
@@ -198,7 +198,7 @@ class Painter
   end
 
   def inferences_dir
-    path = File.join(@resource.get_staging_dir, "inferences")
+    path = File.join(@resource.get_export_dir, "inferences")
     FileUtils.mkdir_p(path)
     path
   end
@@ -349,11 +349,11 @@ class Painter
   # Assumes resource is staged
 
   def publish(resource = @resource)
-    url = "#{resource.get_staging_url_prefix}inferences/"
+    url = resource.staging_url("inferences")
     puts "# Staging URL is #{url}"
 
     # only file in directory, for now
-    table = Table.new(url: "#{url}inferences.csv")
+    table = Table.new(url: "#{url}/inferences.csv")
 
     table.get_part_urls.each do |part_url|
       # row will have strings, but page ids are integers.
