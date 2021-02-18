@@ -30,26 +30,22 @@ class Resource
 
   # ---------- 
 
-  def get_workspace             # For this resource
-    dir = File.join(@location.get_workspace,
-                    "resources",
-                    id.to_s)
-    FileUtils.mkdir_p(dir)
-    dir
+  # Path to be combined with workspace root, export root, or staging root
+  def relative_path(basename)
+    @location.relative_path(File.join("resources",
+                                      id.to_s,
+                                      basename))
   end
 
-  def get_export_dir   # Put files here for subsequent export to staging
-    @location.assert_repository
-    dir = File.join(@location.get_export_dir,
-                    "resources",
-                    @config["id"].to_s)
-    FileUtils.mkdir_p(dir)
-    dir
+  def workspace_path(relative)
+    @location.workspace_path(relative)
   end
 
-  def staging_url(relative)
-    @location.staging_url("resources/#{id}/#{relative}")
+  def export_path(relative)
+    @location.export_path(relative)
   end
+
+  # ----------
 
   # Assume ids are consistent between graphdb and publishing
   def get_publishing_resource
@@ -82,7 +78,7 @@ class Resource
 
   def get_dwca
     lp_url = get_landing_page_url
-    System.system().get_opendata_dwca(lp_url, name)
+    @location.system.get_opendata_dwca(lp_url, name)
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
@@ -345,7 +341,7 @@ class Resource
 
     tt = get_dwca.get_table(Claes.taxon)      # a Table
     if false && tt.is_column(Property.page_id)
-      puts "\nThere are page id assignments in the #{tt.location} table"
+      puts "\nThere are page id assignments in the #{tt.basename} table"
       # get mapping from taxon_id table
       taxon_id_column = tt.column_for_property(Property.taxon_id)
       page_id_column = tt.column_for_property(Property.page_id)

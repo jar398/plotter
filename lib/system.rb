@@ -88,11 +88,35 @@ class System
     @dwcas = {}
   end
 
-  def get_workspace
+  def get_workspace_root
     dir = get_location("workspace").get_path
     FileUtils.mkdir_p(dir)
     dir
   end
+
+  def get_export_root
+    dir = File.join(get_workspace_root, "export")
+    FileUtils.mkdir_p(dir)
+    dir
+  end
+
+  def workspace_path(relative)
+    p = File.join(get_workspace_root, relative)
+    FileUtils.mkdir_p(File.dirname(p))
+    p
+  end
+
+  def export_path(relative)
+    p = File.join(get_export_root, relative)
+    FileUtils.mkdir_p(File.dirname(p))
+    p
+  end
+
+  def get_staging_root_url
+    get_staging_location.get_url
+  end
+
+  def get_staging_location; get_location("staging"); end
 
   def get_trait_bank(tag)
     raise("No trait bank name provided") unless tag
@@ -101,16 +125,19 @@ class System
     return loc
   end
 
+  # Returns nil if no such location ... things depend on this I think
   def get_location(tag)
     @locations[tag]
   end
+
+  # ---------- DwCA stuff
 
   # If you don't have an opendata landing page (which provides a
   # uuid), just generate a random number (in hex).
   def get_dwca(url, landing_page, resource_name = nil)
     id = landing_page[-8..]     # low order 8 bits of landing page uuid
     return @dwcas[id] if @dwcas[id]
-    dir = File.join(get_workspace, "dwca", id)
+    dir = File.join(get_workspace_root, "dwca", id)
     FileUtils.mkdir_p(dir)
     dwca = Dwca.new(dir,
                     url,
@@ -139,6 +166,53 @@ class System
     fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
     html = Nokogiri::HTML(raw)
     html.css('p.muted a').first['href']
+  end
+
+  # ----------------------------------------------------------------------
+  # Export: copy file(s) from local export area to staging server.
+
+  # Relative is a relative path to be joined to the export area root or stage.
+  # It should not end in a '/'.
+
+  def export(relative)
+    raise "Relative path ends in /" if relative.end_with?("/")
+    local = export_path(relative) # /.../test/export/relative
+    prepare_manifests(local)
+
+    spec    = get_staging_location.get_rsync_specifier
+    command = get_staging_location.get_rsync_command
+    #remote = "#{spec}/#{relative}"
+    #line = "#{command} \"#{local}\" \"#{remote}\""
+    line = "#{command} \"#{get_export_root}/./#{relative}\" \"#{spec}/\""
+    STDERR.puts("# #{line}")
+    stdout_string, status = Open3.capture2("#{line}")
+    STDERR.puts("# Status: [#{status}] stdout: [#{stdout_string}]")
+    raise "rsync command yielded nonzero status #{status}" unless status == 0
+
+    # Return URL for subsequent access via LOAD CSV
+    staging_url(relative)
+  end
+
+  def staging_url(relative)
+    "#{get_staging_root_url}/#{relative}"
+  end
+
+  # For each directory in a tree, write a manifest.json that lists the
+  # files in the directory.  This makes the tree traversable by a
+  # web client.
+
+  def prepare_manifests(path)
+    if File.directory?(path)
+      # Prepare one manifest
+      names = Dir.glob("*", base: path)
+      if path.end_with?(".chunks")
+        man = File.join(path, "manifest.json")
+        puts "Writing #{man}"
+        File.write(man, names)
+      end
+      # Recur
+      names.each {|name| prepare_manifests(File.join(path, name))}
+    end
   end
 
 end

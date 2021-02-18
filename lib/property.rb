@@ -38,6 +38,7 @@ class Property < Denotable
 
                # Resource list sync
                "label" => "http://www.w3.org/2000/01/rdf-schema#label",
+               "comment" => "http://www.w3.org/2000/01/rdf-schema#comment",
                "resource_id" => "data:,EOL resource id",
                "resource_version_id" => "data:,EOL resource version id"
               }
@@ -72,6 +73,7 @@ class Property < Denotable
 
     # Resource properties
     def label; named("label"); end
+    def comment; named("comment"); end
     def resource_id; named("resource_id"); end
     def resource_version_id; named("resource_version_id"); end
 

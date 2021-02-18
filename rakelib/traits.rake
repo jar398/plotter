@@ -30,14 +30,12 @@ namespace :traits do
 
   desc "Load traits from a traits dump into the graphdb"
   task :load do
-    trait_bank = get_trait_bank
-    TraitsLoader.new(trait_bank.get_graph).load_terms(ENV['TERMS'])
+    TraitsLoader.new(get_trait_bank.get_graph).load_terms(ENV['TERMS'])
   end
 
   desc "Transfer resource metadata into the graphdb"
   task :sync_resource_metadata do
-    trait_bank = get_trait_bank
-    trait_bank.sync_resource_nodes
+    get_trait_bank.sync_resource_nodes
   end
 
 end

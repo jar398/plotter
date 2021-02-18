@@ -38,7 +38,7 @@ class Table
   def initialize(property_vector: nil,  # array of Property
                  property_positions: nil,  # maps Property to column number
                  header: nil,
-                 location: nil,
+                 basename: nil,
                  path: nil,
                  url: nil,      # for reading over the web...
                  stage: nil,
@@ -50,10 +50,10 @@ class Table
     @property_positions = property_positions    # Property to column position
 
     @claes = claes
-    @location = location    # file basename, or nil
+    @basename = basename    # file basename, or nil
     if not separator
       # "you should use double quote when you want to escape a character"
-      separator = (location.end_with?('.csv') ? ',' : "\t")
+      separator = (basename.end_with?('.csv') ? ',' : "\t")
     end
     if separator.length > 1
       separator = "\t"
@@ -69,7 +69,7 @@ class Table
   end
 
   def claes; @claes; end
-  def location; @location || File.basename(@path); end
+  def basename; @basename || File.basename(@path); end
   def path; @path; end
 
   # @property_vector is an array of Property objects
@@ -135,8 +135,8 @@ class Table
   end
 
   def store
-    raise("No stage for this table: #{@location}") unless @stage
-    raise("No local path for this table: #{@location}") unless @path
+    raise("No stage for this table: #{@basename}") unless @stage
+    raise("No local path for this table: #{@basename}") unless @path
     raise("NYI: copy #{@path} to #{@stage}")
     # something.copy_to_stage ... ?
   end

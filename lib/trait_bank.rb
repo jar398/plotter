@@ -23,14 +23,6 @@ class TraitBank < Location
     @graph
   end
 
-  def proxy_graphdb
-    token_path = @config["update_token_file"] ||
-                 @config["token_file"]
-    token = File.read(token_path).strip
-    puts "# Graphdb proxy URL is #{get_url}"
-    Graph.via_http(get_url, token)
-  end
-
   # Parse and cache a resource's collection of resource records
   # Array -> nil (for side effects)
   def get_resource_records
@@ -53,30 +45,44 @@ class TraitBank < Location
   end
 
   def prepare_resource_table
-    dir = get_export_dir
-    FileUtils.mkdir_p(dir)
     fname = "resources.csv"
+    rel = relative_path(fname)
+    path = export_path(rel)
+    puts "# Preparing resource table; export path = #{path}"
+
     table = Table.new(property_vector: [Property.resource_id,
+                                        Property.resource_version_id,
                                         Property.label,
-                                        Property.resource_version_id],
-                      location: fname,
-                      path: File.join(dir, fname))
+                                        Property.comment],
+                      basename: fname,
+                      path: path)
     csv_out = table.open_csv_out
     get_resource_records.each do |key, r|
-      csv_out << [r["id"].to_s, r["name"]]
+      csv_out << [r["id"].to_s, r["repository_id"].to_s, r["name"], r["description"]]
     end
     csv_out.close
     table
   end
 
   def load_resource_table(table)
-    puts("# Table is supposed to be at #{table.path}")
+    puts("# Copying resource table from #{table.path} to stage")
     # 1. scp to staging host.
-    copy_to_stage("resources.csv")
+    url = system.export(relative_path(table.basename))
+    puts("# Staging URL is #{url}")
 
     # 2. LOAD CSV
-    url = staging_url("resources.csv")
-    puts("# URL is #{url}")
+    # For column headings see property.rb - these can be changed
+    query = "LOAD CSV WITH HEADERS FROM '#{url}'
+             AS row
+             MERGE (r:Resource {resource_id: row.resource_id})
+             SET r.repository_id = row.resource_version_id
+             SET r.name = row.label
+             SET r.description = row.comment
+             RETURN COUNT(r)
+             LIMIT 1"
+    r = get_graph.run_query(query)
+    count = r ? r["data"][0][0] : 0
+    STDERR.puts("Merged #{count} resources from #{url}")
   end
 
 end

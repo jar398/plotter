@@ -11,22 +11,41 @@ class Location
   end
 
   def name; @name; end
+  def system; @system; end
 
-  def get_workspace        # For all purposes
-    File.join(@system.get_workspace, @name)
+  # ----------
+
+  # Path to root of tree containing various artifacts, relative to
+  # workspace root, export root, or staging area root
+  def relative_path(basename)
+    File.join(name, basename)
   end
 
-  # for workspace and concordance...
-  def get_path
-    return @config["path"]
+  # Trampolines
+  def workspace_path(relative)
+    raise "#{relative} not in #{name}" unless relative.start_with?(name)
+    system.workspace_path(relative)
   end
+  def export_path(relative)
+    raise "#{relative} not in #{name}" unless relative.start_with?(name)
+    system.export_path(relative)
+  end
+
+  # ----------
 
   # If this is a publishing instance, return the associated repository instance
 
   def get_repository_location
     probe = @config["repository"]
     raise "No repository instance associated with location #{name}" unless probe
-    @system.get_location(probe)
+    system.get_location(probe)
+  end
+
+  # For workspace and concordance... ?  non-traitbank locations
+  def get_path
+    path = @config["path"]
+    raise "No path defined for location #{name}" unless path
+    path
   end
 
   # Pub/repo HTTP endpoint.  For resource lists, page id maps
@@ -38,69 +57,12 @@ class Location
     url
   end
 
-  # ----------------------------------------------------------------------
-  # Export to staging server.
+  # see system.rb
 
-  # For a given graphdb, files from up to three local export/
-  # directories (graphdb, publishing, repository) get merged when
-  # exported to the staging server.  But each graphdb has its own
-  # staging area, making export a recombination event.
-
-  # Where to put files locally before they go to staging server.
-
-  def get_export_dir
-    dir = File.join(get_workspace, "export", name)
-    FileUtils.mkdir_p(dir)
-    dir
-  end
-
-  # Copy from local export area to staging server.  (i.e. 'stage' file/files.)
-  # Relative should not end in a '/'.
-
-  def export(relative)
-    local = File.join(get_export_dir, relative)
-    staging = get_staging_location
-    remote = "#{staging.get_rsync_specifier}/#{relative}"
-    command = staging.get_rsync_command
-    prepare_manifests(local)
-    STDERR.puts("# Copying #{local} to #{remote}")
-    stdout_string, status = Open3.capture2("#{command} #{local}/ #{remote}/")
-    STDERR.puts("# Status: [#{status}] stdout: [#{stdout_string}]")
-    # This is how we access it from a LOAD CSV:
-    staging_url(relative)
-  end
-
-  # For staging area location and structure see ../README.md
-
-  def staging_url(relative)
-    "#{get_staging_location.get_url}/#{name}/#{relative}"
-  end
-
-  # For each directory in a tree, write a manifest.json that lists the
-  # files in the directory.  This makes the tree traversable by a
-  # web client.
-
-  def prepare_manifests(path)
-    if File.directory?(path)
-      # Prepare one manifest
-      names = Dir.glob("*", base: path)
-      if path.end_with?(".chunks")
-        man = File.join(path, "manifest.json")
-        puts "Writing #{man}"
-        File.write(man, names)
-      end
-      # Recur
-      names.each {|name| prepare_manifests(File.join(path, name))}
-    end
-  end
-
-  def get_staging_location
-    @system.get_location("staging")
-  end
   def get_rsync_specifier
     r = @config["rsync_specifier"]
     raise "No remote rsync specifier set for #{name}" unless r
-    "#{r}/staging"
+    r
   end
   def get_rsync_command
     c = @config["rsync_command"] || "rsync -va"
@@ -124,16 +86,17 @@ class Location
   def load_rails_resource_records(cachep = false)   # Returns an array
     if @config.key?("resource_records")
       # Ideally this would be cached in the instance workspace
+      # when_cached = workspace_path("resource_records.csv")
       when_cached = @config["resource_records"]    # maybe nil
       puts "# Resource records when cached would be at #{when_cached}"
       unless File.exists?(when_cached)
-        url = "#{get_url}resources.json?per_page=10000"
+        url = "#{get_url}resources.json?per_page=100000"
         puts "# Reading #{url}"
         System.copy_from_internet(url, when_cached)
       end
       obj = System.load_json(when_cached)
     else
-      url = "#{get_url}resources.json?per_page=10000"
+      url = "#{get_url}resources.json?per_page=100000"
       obj = System.load_json(url)
     end
     if obj.key?("resources")

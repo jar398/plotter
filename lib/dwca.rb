@@ -184,14 +184,14 @@ class Dwca
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
     tables = doc.css('archive table').collect do |table_element|
       row_type = table_element['rowType']    # a URI
-      location = table_element.css("location").first.text
+      basename = table_element.css("location").first.text
       positions = parse_fields(table_element)
       sep = table_element['fieldsTerminatedBy']
       ig = table_element['ignoreHeaderLines']
       raise "No fields ??" unless positions.length > 0
       Table.new(property_positions: positions,    # Property -> position hash
-                location: location,
-                path: File.join(get_unpacked_loc, location),
+                basename: basename,
+                path: File.join(get_unpacked_loc, basename),
                 separator: sep,
                 ignore_lines: (ig ? ig.to_i : 0),
                 claes: Claes.get(row_type))
