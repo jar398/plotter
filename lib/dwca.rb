@@ -11,17 +11,16 @@ require 'system'
 
 class Dwca
 
-  def initialize(dwca_workspace, dwca_url, properties)
-    @dwca_workspace = dwca_workspace
+  def initialize(dwca_root, dwca_url, properties)
+    @dwca_workspace = dwca_root
     @dwca_url = dwca_url      # where the dwca is stored on the Internet
     @properties = properties
     @tables = nil
   end
 
-  def get_workspace
+  def get_dwca_workspace
     unless File.exists?(@dwca_workspace)
       FileUtils.mkdir_p(@dwca_workspace)
-      # check for existing & merge properties???
     end
     path = File.join(@dwca_workspace, "properties.json")
     unless File.exists?(path)    # ??
@@ -38,7 +37,7 @@ class Dwca
 
   # Where the DwCA file is stored in local file system
   def get_dwca_path
-    ws = get_workspace
+    ws = get_dwca_workspace
     if @dwca_url
       ext = @dwca_url.end_with?('.zip') ? 'zip' : 'tgz'
       path = File.join(ws, "dwca.#{ext}")
@@ -53,7 +52,7 @@ class Dwca
 
   # Where the unpacked files should be put
   def get_unpacked_loc
-    dir = File.join(get_workspace, "unpacked")
+    dir = File.join(get_dwca_workspace, "unpacked")
     FileUtils.mkdir_p(dir)
     dir
   end
@@ -80,7 +79,7 @@ class Dwca
 
     # Use existing archive if it's there
     if url_valid?(url) && File.exist?(path) && File.size(path).positive?
-      raise "Using previously downloaded archive.  rm -r #{get_workspace} to force reload."
+      raise "Using previously downloaded archive.  rm -r #{get_dwca_workspace} to force reload."
     else
       System.copy_from_internet(url, path)
     end
@@ -91,7 +90,7 @@ class Dwca
   def url_valid?(dwca_url)
     return false unless dwca_url
     # Reuse previous file only if URL matches
-    file_holding_url = File.join(get_workspace, "dwca_url")
+    file_holding_url = File.join(get_dwca_workspace, "dwca_url")
     valid = false
     if File.exists?(file_holding_url)
       old_url = File.read(file_holding_url)
@@ -106,7 +105,7 @@ class Dwca
   # Adapted from harvester app/models/drop_dir.rb
   # archive_file is either something.tgz or something.zip
   def unpack_archive(archive_file, dir)
-    temp = File.join(get_workspace, "tmp")
+    temp = File.join(get_dwca_workspace, "tmp")
     FileUtils.mkdir_p(temp) unless Dir.exist?(temp)
 
     ext = File.extname(archive_file)

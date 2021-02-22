@@ -11,6 +11,7 @@ class Property < Denotable
 
     MAPPING = {"taxon_id" => "http://rs.tdwg.org/dwc/terms/taxonID",
                "page_id" => "http://eol.org/schema/EOLid",
+               "parent_page_id" => "http://eol.org/schema/parentEOLid",
                "scientific_name" => "http://rs.tdwg.org/dwc/terms/scientificName",
 
                # These are DH columns

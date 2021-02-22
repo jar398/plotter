@@ -5,6 +5,8 @@ IMPORT=/usr/local/src/neo4j-community-3.5.11/import
 # A good result for 'confirm' is all zeroes in the report except for
 # 'field added' and 'unchanged'.
 
+# do `make wipe` and `make diffpatch-test` before doing `make confirm`
+
 confirm: work/confirm/new.csv
 
 work/confirm/new.csv: work/test-dh-prepared.csv work/724-prepared.csv
@@ -14,15 +16,19 @@ work/test-dh-prepared.csv: work/dump-of-test-dh.csv prepare.py
 	time python3 prepare.py work/dump-of-test-dh.csv >$@.new
 	mv $@.new $@
 
+work/dump-of-test-dh.csv: ../lib/hierarchy.rb
+	time rake hierarchy:dump CONF=test DEST=$(PWD)/work/dump-of-test-dh.csv
+
 # load: 2:43, patch: 1:41, dump: 1:19
 
-work/dump-of-test-dh.csv: work/1-prepared.csv work/patch/new.csv ../lib/hierarchy.rb
+diffpatch-test: work/1-prepared.csv work/patch/new.csv ../lib/hierarchy.rb
 	cp -p work/1-prepared.csv $(IMPORT)/
 	time rake hierarchy:load CONF=test PAGES="file:///1-prepared.csv"
 	cp -pr work/patch $(IMPORT)/
 	time rake hierarchy:patch CONF=test PATCH="file:///patch"
-	rm work/dump-of-test-dh.csv
-	time rake hierarchy:dump CONF=test DEST=$(PWD)/work/dump-of-test-dh.csv
+	rm -f work/dump-of-test-dh.csv*
+	time rake hierarchy:dump CONF=test DEST=$(PWD)/work/diffpatch-dh.csv
+
 
 # Create diff/patch directives to morph 0.9 into 1.1
 
@@ -54,6 +60,9 @@ work/prod-dh-prepared.csv: work/dump-of-prod-dh.csv prepare.py
 
 work/dump-of-prod-dh.csv: ../lib/hierarchy.rb
 	rake hierarchy:dump CONF=prod DEST=$(PWD)/work/dump-of-prod-dh.csv
+
+prepare-prod: work/prod-dh-prepared.csv
+	cp -p work/prod-dh-prepared.csv $(IMPORT)/
 
 # Marshall the DH files
 

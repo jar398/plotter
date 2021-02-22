@@ -36,15 +36,17 @@ class Hierarchy
   def load(filename)
     puts "Loading page records from #{filename}"
     # First, create a Page node for each page id
-    # taxonID,parentNameUsageID,canonicalName,scientificName,taxonRank,taxonomicStatus
+    # EOLid,parentEOLid,taxonRank,canonicalName,scientificName,
+    #   taxonomicStatus,landmark,taxonID
     # We need a URL for the file !... hmm
     query = "USING PERIODIC COMMIT
              LOAD CSV WITH HEADERS FROM '#{filename}'
              AS row
-             WITH row, toInteger(row.taxonID) AS page_id
+             WITH row, toInteger(row.EOLid) AS page_id
              MERGE (page:Page {page_id: page_id})
              SET page.rank = row.taxonRank
              SET page.canonical = row.canonicalName
+             SET page.landmark = row.landmark
              RETURN COUNT(page)
              LIMIT 100000000"
     r = run_query(query)
@@ -53,7 +55,7 @@ class Hierarchy
     puts "#{n} page records loaded"
 
     # Second, set the parent pointers.
-    patch_parents(filename, "parentNameUsageID")
+    patch_parents(filename, "parentEOLid")
   end
 
   # Patch parent links
@@ -63,7 +65,7 @@ class Hierarchy
     if parent_field == "to"
       # The stupid 'WITH row' is a workaround for a pointless Cypher clause 
       # syntax restriction 
-      w =   "WITH row WHERE row.field = 'parentNameUsageID'"
+      w =   "WITH row WHERE row.field = 'parentEOLid'"
       # We are patching, not initializing, so we'll need to get rid of any 
       # existing parent relationship
       w2 =  "OPTIONAL MATCH (page)-[rel:parent]->(:Page)
@@ -77,7 +79,7 @@ class Hierarchy
              AS row
              #{w}
              WITH row,
-                  toInteger(row.taxonID) AS page_id,
+                  toInteger(row.EOLid) AS page_id,
                   toInteger(row.#{parent_field}) AS parent_id
              MATCH (page:Page {page_id: page_id})
              #{w2}
@@ -101,7 +103,7 @@ class Hierarchy
              AS row
              WITH row
              WHERE row.field = '#{column}'
-             WITH row, toInteger(row.taxonID) AS page_id
+             WITH row, toInteger(row.EOLid) AS page_id
              MATCH (page:Page {page_id: page_id})
              SET page.#{prop} = row.to
              RETURN COUNT(page)
@@ -131,7 +133,7 @@ class Hierarchy
              LOAD CSV WITH HEADERS FROM '#{filename}'
              AS row
              WITH row,
-                  toInteger(row.taxonID) AS page_id
+                  toInteger(row.EOLid) AS page_id
              MATCH (page:Page {page_id: page_id})
              DETACH DELETE page
              RETURN COUNT(page)
@@ -147,11 +149,12 @@ class Hierarchy
     pag = Paginator.new(get_graph)
     cql = "MATCH (p:Page)
            OPTIONAL MATCH (p:Page)-[:parent]->(q:Page)
-           WITH p.page_id AS taxonID,
-                q.page_id as parentNameUsageID,
+           WITH p.page_id AS EOLid,
+                q.page_id as parentEOLid,
                 p.rank as taxonRank,
-                p.canonical as canonicalName
-           RETURN taxonID, parentNameUsageID, taxonRank, canonicalName"
+                p.canonical as canonicalName,
+                p.landmark as landmark
+           RETURN EOLid, parentEOLid, taxonRank, canonicalName, landmark"
     pag.supervise_query(cql, nil, @chunksize, csv_path)
   end
 

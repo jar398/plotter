@@ -45,6 +45,12 @@ class Resource
     @location.export_path(relative)
   end
 
+  # This is not a function of the resource or location... maybe
+  # shouldn't even be a method on this class
+  def staging_url(relative)
+    "#{@location.system.get_staging_root_url}/#{relative}"
+  end
+
   # ----------
 
   # Assume ids are consistent between graphdb and publishing
@@ -54,7 +60,7 @@ class Resource
 
   def get_repository_resource
     rid = @config["repository_id"]
-    raise "No repository id for resource #{id} = #{name}" unless rid
+    return nil unless rid
     @location.get_repository_location.get_own_resource_by_id(rid)
   end
 
@@ -77,8 +83,7 @@ class Resource
   end
 
   def get_dwca
-    lp_url = get_landing_page_url
-    @location.system.get_opendata_dwca(lp_url, name)
+    @location.system.get_opendata_dwca(get_landing_page_url, name)
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
@@ -125,12 +130,11 @@ class Resource
     puts "Input properties are: #{in_props.collect{|p|p.name}}"
 
     # Output table goes in staging area for this kind of task
-    dir = File.join(get_export_dir, "vernaculars")
-    FileUtils.mkdir_p(dir)
-    fname = "vernaculars.csv"
+    basename = "vernaculars.csv"
+    relative = relative_path(File.join("vernaculars", basename))
     out_table = Table.new(property_vector: out_props,
-                          location: fname,
-                          path: File.join(dir, fname))
+                          basename: basename,
+                          path: export_path(relative))
 
     # Prepare for mapping node ids to page ids, which we do if we have
     # a node id and want a page id
@@ -206,14 +210,12 @@ class Resource
     csv_in.close
   end
 
-  # ---------- Processing stage 4: copy workspace to staging 
-  # area on server
-
-  # Copy the staging/TAG.PID.RID/ directory out to the staging host.
+  # ---------- Processing stage 4: copy resource's export directory to
+  # staging area on server
 
   def stage
     @location.assert_repository
-    @location.export(File.join(id.to_s, relative))
+    @location.system.export(relative_path("."))
   end
 
   # ---------- Processing stage 5: compute delta
@@ -232,10 +234,6 @@ class Resource
     r = @location.get_graph.run_query(query)
     count = r ? r["data"][0][0] : "?"
     puts("#{count} vernacular records")
-  end
-
-  def erase
-    erase_vernaculars
   end
 
   def erase_vernaculars
@@ -271,7 +269,10 @@ class Resource
   end
 
   def publish_vernaculars     # slurp
-    url = staging_url("vernaculars/vernaculars.csv")
+    rr = get_publishing_resource.get_repository_resource
+
+    rel = rr.relative_path("vernaculars/vernaculars.csv")
+    url = rr.staging_url(rel)
     puts "# Staging URL is #{url}"
 
     id_in_graph = id
@@ -300,7 +301,7 @@ class Resource
     STDERR.puts("Merged #{count} relationships from #{url}")
   end
 
-  # ---------- Taxon id to page id map
+  # ---------- Taxon (node) id to page id map
 
   # We use the repository server for its page_id_map service
 
@@ -308,9 +309,10 @@ class Resource
   # [might want to cache it in the file system as well]
 
   def get_page_id_map
+    @location.assert_repository
     return @page_id_map if @page_id_map
 
-    path = File.join(get_workspace, "page_id_map.csv")
+    path = page_id_map_path
     if File.exist?(path)
       puts "Reading page id map from #{path}"
       csv = CSV.open(path, "r:UTF-8", col_sep: ",", quote_char: '"')
@@ -332,6 +334,10 @@ class Resource
       csv_out.close
     end
     @page_id_map
+  end
+
+  def page_id_map_path
+    workspace_path(relative_path("page_id_map.csv"))
   end
 
   # Method applicable to a repository resource
@@ -410,17 +416,37 @@ class Resource
   end
 
   def info
-    puts "Id in graphdb: #{id}"
-    puts "Name: #{name}"
-    puts "Workspace: #{get_workspace}"
+    puts "In graphdb:"
+    puts "  id: #{id}"
+    puts "  name: #{name}"
+    rel = relative_path("")
+    puts "  relative path: #{rel}"
+    puts "  workspace path: #{workspace_path(rel)}"
+    puts "  export path: #{export_path(rel)}"
+    puts "  staging url: #{staging_url(rel)}"
+
     pr = get_publishing_resource
-    puts "Stage: #{staging_url(".")}"
-    puts "Id in publishing instance: #{pr.id}"
+    puts "In publishing instance:"
+    puts "  id: #{pr.id}"
+
     rr = pr.get_repository_resource
-    puts "Id in repository instance: #{rr.id}"
-    puts "Export: #{rr.get_export_dir}"
-    puts "Repo stage: #{rr.staging_url(".")}"
+    puts "In repository instance:"
+    puts "  versions: #{rr.versions}"
+    puts "  id: #{rr.id}"
+    rrel = rr.relative_path("")
+    puts "  relative path: #{rrel}"
+    puts "  workspace path: #{rr.workspace_path(rrel)}"
+    puts "  export path: #{rr.export_path(rrel)}"
+    puts "  staging url: #{rr.staging_url(rrel)}"
     puts "Opendata landing page URL: #{rr.get_landing_page_url}"
+    puts ""
+  end
+
+  def versions
+    gotcha = @location.get_own_resource_records.values.select do |r|
+      r["name"] == name
+    end
+    gotcha.collect{|r| r["id"]}.sort
   end
 
 end

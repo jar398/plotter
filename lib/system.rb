@@ -137,7 +137,8 @@ class System
   def get_dwca(url, landing_page, resource_name = nil)
     id = landing_page[-8..]     # low order 8 bits of landing page uuid
     return @dwcas[id] if @dwcas[id]
-    dir = File.join(get_workspace_root, "dwca", id)
+    rel = File.join("dwca", id)
+    dir = workspace_path(rel)
     FileUtils.mkdir_p(dir)
     dwca = Dwca.new(dir,
                     url,
