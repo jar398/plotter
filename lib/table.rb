@@ -14,10 +14,14 @@
 
 class Table
   class << self
+
+    # This returns the inverse of the position_map i.e. a vector
+    # whose indexes are positions of columns holding property values
+
     def to_property_vector(position_map)  # position_map : property -> position
       prop_vec = Array.new(position_map.values.max + 1)
       position_map.each {|prop, pos| prop_vec[pos] = prop}
-      puts "# Column properties: #{prop_vec.collect{|prop|prop.name}}"
+      #puts "# Column properties: #{prop_vec.collect{|prop|prop.name}}"
       raise "No fields ??" unless prop_vec.length > 0
       prop_vec
     end
@@ -71,6 +75,7 @@ class Table
   def claes; @claes; end
   def basename; @basename || File.basename(@path); end
   def path; @path; end
+  def header; @header; end
 
   # @property_vector is an array of Property objects
 
@@ -158,7 +163,6 @@ class Table
       (0...@ignore_lines).each do |counter|
         row = csv.shift
         @header = row unless @header
-        puts "# discarding header row #{row}"
       end
     else
       raise "Found neither #{path_part} nor #{chunks_dir}"
@@ -212,6 +216,28 @@ class Table
       FileUtils.rm(raw)
     end
     dir
+  end
+
+  def get_header
+    open_csv_in.close unless @header    # Side effect: sets @header
+    @header
+  end
+
+  def show_info
+    get_header
+    puts "# Table location: #{path}"
+    # Also show path to table?
+    puts "file,field_name,property_uri,property_name"
+    (0..(@header.size)).each do |i| 
+      field = @header[i]
+      prop = get_property_vector[i]
+      if prop
+        puts "#{@basename},#{field},\"#{prop.uri}\",#{prop.name}"
+      elsif field
+        puts "#{@basename},#{field},,"
+      end
+    end
+    puts "\n"
   end
 
 end

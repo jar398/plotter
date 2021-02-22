@@ -184,11 +184,11 @@ class Dwca
     tables = doc.css('archive table').collect do |table_element|
       row_type = table_element['rowType']    # a URI
       basename = table_element.css("location").first.text
-      positions = parse_fields(table_element)
+      positions = parse_fields(table_element)     # Property -> position
       sep = table_element['fieldsTerminatedBy']
       ig = table_element['ignoreHeaderLines']
       raise "No fields ??" unless positions.length > 0
-      Table.new(property_positions: positions,    # Property -> position hash
+      Table.new(property_positions: positions,    # Property -> position
                 basename: basename,
                 path: File.join(get_unpacked_loc, basename),
                 separator: sep,
@@ -206,9 +206,11 @@ class Dwca
 
   def parse_fields(table_element)
     positions_for_this_table = {}
-    table_element.css('field').each do |field|
-      i = field['index'].to_i
-      prop = Property.get(field['term'])
+    table_element.css('field').each do |field_element|
+      # e.g. <field index="0" term="http://rs.tdwg.org/dwc/terms/taxonID"/>
+      i = field_element['index'].to_i
+      uri = field_element['term']
+      prop = Property.get(uri)
       positions_for_this_table[prop] = i
     end
     positions_for_this_table

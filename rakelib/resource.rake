@@ -14,19 +14,25 @@ namespace :resource do
     get_trait_bank.get_resource_by_id(id.to_i)
   end
 
-  def get_repo                  # utility
-    get_resource.get_publishing_resource.get_repository_resource
+  def get_in_repo                  # utility
+    tb = get_trait_bank
+    rid = ENV['REPO_ID']
+    if rid
+      tb.get_publishing_location.get_repository_location.get_own_resource(rid.to_i)
+    else
+      get_resource.get_publishing_resource.get_repository_resource
+    end
   end
 
   desc "Load resource from opendata and store vernaculars on staging site"
   task :prepare_vernaculars do 
     get_resource.harvest
-    get_repo.stage
+    get_in_repo.stage
   end
 
   desc "Put onto staging site"
   task :stage do
-    get_repo.stage
+    get_in_repo.stage
   end
 
   desc "Erase all of this resource's contributed information from graphdb"
@@ -41,7 +47,7 @@ namespace :resource do
 
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
-    get_repo.fetch
+    get_in_repo.fetch
   end
 
   desc "Number of vernacular records in graphdb"
@@ -51,8 +57,8 @@ namespace :resource do
 
   desc "Extract page id map to a file"
   task :map do
-    get_repo.get_page_id_map() 
-    path = get_repo.page_id_map_path
+    get_in_repo.get_page_id_map() 
+    path = get_in_repo.page_id_map_path
     puts "Page id map is at #{path}"
   end
 
@@ -61,20 +67,21 @@ namespace :resource do
     get_resource.info()
   end
 
-  task :foo do
-    pub = get_trait_bank.get_publishing_location
-    repo = pub.get_repository_location
-    pids = pub.get_own_resource_records.keys
-    puts "#{pids.size} resources in publishing repo"
-    pids.sort.each do |pid|
-      pr = pub.get_resource_by_id(pid)
-      rr = pr.get_repository_resource
-      if rr
-        vs = rr.versions
-        if vs.size > 1 #pid % 17 == 0
-          puts("Pub #{pid} -> repo #{rr.id} in #{vs} #{rr.name}")
-        end
-      end
+  task :tables do
+    tables = get_in_repo.get_dwca.get_tables.values
+    tables.each do |t|
+      # Do this up front for less cluttered output
+      t.get_header
+    end
+    # List of tables
+    # It would be better to use a CSV writer
+    puts "\nfile,class,local_path"
+    tables.each do |t|
+      puts "#{t.basename},\"#{t.claes.uri}\",\"#{t.path}\""
+    end
+    puts "\n"
+    tables.each do |t|
+      t.show_info
     end
   end
 

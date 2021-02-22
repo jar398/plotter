@@ -44,18 +44,12 @@ class Property < Denotable
                "resource_version_id" => "data:,EOL resource version id"
               }
 
-    MAPPING.each do |name, uri|
-      Property.get(uri, name)
+    def get(uri, hint = nil)
+      prop = Registry.by_uri(uri) || Property.new(uri, hint)
     end
 
-    def get(uri, name = nil)
-      prop = Registry.by_uri(uri)
-      if prop
-        prop
-      else
-        puts "Registering #{uri} as #{name || '(anonymous)'}"
-        Property.new(uri, name)
-      end
+    MAPPING.each do |name, uri|
+      Property.get(uri, name)
     end
 
     # Particular properties mentioned in the ruby code

@@ -6,21 +6,23 @@ class Registry
 
   class << self
 
+    # name may be overridden if it collides with name of another denotable.
+    # Returns key, which then becomes the object's 'name'.
     def register(obj)
       @index_by_uri = {} unless @index_by_uri
       @index_by_name = {} unless @index_by_name
+
       raise("No URI") unless obj.uri
       raise("Bad URI: #{obj.uri}") unless obj.uri.include?(":")
 
-      if @index_by_uri[obj.uri] == nil
-        @index_by_uri[obj.uri] = obj
-        if obj.name
-          @index_by_name[obj.name] = obj  
-        else
-          puts("URI has no cypher name: #{obj.uri}")
-        end
+      have = @index_by_uri[obj.uri]
+      if have
+        raise "Redundant registration of #{uri}" if obj != have
       end
-
+      have = @index_by_name[obj.name]
+      if have
+        raise "Redundant registration under #{obj.name}" if obj != have
+      end
       obj
     end
 

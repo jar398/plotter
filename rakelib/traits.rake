@@ -38,4 +38,23 @@ namespace :traits do
     get_trait_bank.sync_resource_nodes
   end
 
+  desc "List resources have 2 or more versions"
+  task :multiversion do
+    tb = get_trait_bank
+    pub = tb.get_publishing_location
+    repo = pub.get_repository_location
+    pids = pub.get_own_resource_records.keys
+    puts "# #{pids.size} resources in publishing repo"
+    pids.sort.each do |pid|
+      pr = pub.get_resource_by_id(pid)
+      rr = pr.get_repository_resource
+      if rr
+        vs = rr.versions
+        if vs.size > 1 #pid % 17 == 0
+          puts("Pub #{pid} -> repo #{rr.id} in #{vs} #{rr.name}")
+        end
+      end
+    end
+  end
+
 end
