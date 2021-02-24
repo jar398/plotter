@@ -415,7 +415,7 @@ class Resource
     repository_url
   end
 
-  def info
+  def show_info
     puts "In graphdb:"
     puts "  id: #{id}"
     puts "  name: #{name}"
@@ -430,15 +430,19 @@ class Resource
     puts "  id: #{pr.id}"
 
     rr = pr.get_repository_resource
+    rr.show_repository_info
+  end
+
+  def show_repository_info
     puts "In repository instance:"
-    puts "  versions: #{rr.versions}"
-    puts "  id: #{rr.id}"
-    rrel = rr.relative_path("")
+    puts "  versions: #{versions}"
+    puts "  id: #{id}"
+    rrel = relative_path("")
     puts "  relative path: #{rrel}"
-    puts "  workspace path: #{rr.workspace_path(rrel)}"
-    puts "  export path: #{rr.export_path(rrel)}"
-    puts "  staging url: #{rr.staging_url(rrel)}"
-    puts "Opendata landing page URL: #{rr.get_landing_page_url}"
+    puts "  workspace path: #{workspace_path(rrel)}"
+    puts "  export path: #{export_path(rrel)}"
+    puts "  staging url: #{staging_url(rrel)}"
+    puts "Opendata landing page URL: #{get_landing_page_url}"
     puts ""
   end
 

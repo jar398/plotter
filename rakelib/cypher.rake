@@ -6,9 +6,13 @@ task :cypher do
   ENV['QUERY'] || raise("Please define the QUERY environment variable")
   results = System.system.get_trait_bank(tag).get_graph.run_query(ENV['QUERY'])
 
-  csv = CSV.new(STDOUT)
-  csv << results["columns"]
-  results["data"].each do |row|
-    csv << row
+  if results
+    csv = CSV.new(STDOUT)
+    csv << results["columns"]
+    results["data"].each do |row|
+      csv << row
+    end
+  else
+    puts("No results")
   end
 end

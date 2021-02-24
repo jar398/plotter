@@ -51,9 +51,38 @@ namespace :traits do
       if rr
         vs = rr.versions
         if vs.size > 1 #pid % 17 == 0
-          puts("Pub #{pid} -> repo #{rr.id} in #{vs} #{rr.name}")
+          vs.each do |vid|
+            lp_url = rr.get_landing_page_url
+            dwca_tag = lp_url[-8..]
+            puts("#{pid} #{vid} #{dwca_tag} #{rr.name}")
+          end
         end
       end
+    end
+  end
+
+  desc "Show resources that have traits"
+  task :foo do
+    tb = get_trait_bank
+    graph = tb.get_graph
+    results = graph.run_query(
+      "MATCH (r:Resource),
+             (t:Trait)-[:supplier]->(r)
+             RETURN DISTINCT r.resource_id
+             LIMIT 50")
+    puts "#{results["data"].size} resources with traits"
+    ids = results["data"].each{|id| id.to_s}.sort
+    ids.each do |result_row|
+      id = result_row[0].to_i
+      more = graph.run_query(
+        "MATCH (r:Resource {resource_id: #{id}})
+               <-[:supplier]-(t:Trait)
+             RETURN COUNT(t)
+             LIMIT 1")
+      count = more["data"][0][0]
+      r = tb.get_resource_by_id(id)
+      rr = r.get_publishing_resource.get_repository_resource
+      puts("#{id} #{rr.id} #{count} #{r.name}")
     end
   end
 

@@ -10,7 +10,6 @@ namespace :resource do
 
   def get_resource
     id = ENV['ID'] || raise("Please provide env var ID")
-    tag = ENV['CONF'] || raise("Please provide env var CONF")
     get_trait_bank.get_resource_by_id(id.to_i)
   end
 
@@ -18,8 +17,10 @@ namespace :resource do
     tb = get_trait_bank
     rid = ENV['REPO_ID']
     if rid
-      tb.get_publishing_location.get_repository_location.get_own_resource(rid.to_i)
+      repo = tb.get_publishing_location.get_repository_location
+      repo.get_resource_by_id(rid.to_i)
     else
+      puts "** No REPO_ID, getting latest version of ID=#{ENV['ID']}"
       get_resource.get_publishing_resource.get_repository_resource
     end
   end
@@ -64,7 +65,12 @@ namespace :resource do
 
   desc "Show miscellaneous information about a resource"
   task :info do
-    get_resource.info()
+    get_resource.show_info()
+  end
+
+  desc "Show miscellaneous information about a resource version"
+  task :version_info do
+    get_in_repo.show_repository_info()
   end
 
   task :tables do

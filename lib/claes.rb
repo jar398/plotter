@@ -12,7 +12,9 @@ class Claes < Denotable
 
     MAPPING = {"Taxon" => "http://rs.tdwg.org/dwc/terms/Taxon",
                "VernacularName" => "http://rs.gbif.org/terms/1.0/VernacularName",
-               "Resource" => "data:,EOL source resource"}
+               "Occurrence" => "http://rs.tdwg.org/dwc/terms/Occurrence",
+               "MeasurementOrFact" => "http://rs.tdwg.org/dwc/terms/MeasurementOrFact",
+               "Resource" => "data:,EOL data source"}
 
     MAPPING.each do |name, uri|
       Claes.get(uri, name)
@@ -22,6 +24,7 @@ class Claes < Denotable
     def taxon; named("Taxon"); end
     def vernacular_name; named("VernacularName"); end
     def resource; named("Resource"); end
+    def measurement_or_fact; named("MeasurementOrFact"); end
 
   end
 
