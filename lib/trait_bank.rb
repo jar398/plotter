@@ -49,11 +49,7 @@ class TraitBank < Location
     rel = relative_path(fname)
     path = export_path(rel)
     puts "# Preparing resource table; export path = #{path}"
-
-    table = Table.new(property_vector: [Property.resource_id,
-                                        Property.resource_version_id,
-                                        Property.label,
-                                        Property.comment],
+    table = Table.new(header: ["resource_id", "repository_id", "name", "description"],
                       basename: fname,
                       path: path)
     csv_out = table.open_csv_out
@@ -74,10 +70,12 @@ class TraitBank < Location
     # For column headings see property.rb - these can be changed
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
-             MERGE (r:Resource {resource_id: row.resource_id})
-             SET r.repository_id = row.resource_version_id
-             SET r.name = row.label
-             SET r.description = row.comment
+             WITH row, toInteger(row.resource_id) as resource_id,
+                       toInteger(row.repository_id) as repository_id
+             MERGE (r:Resource {resource_id: resource_id})
+             SET r.repository_id = repository_id
+             SET r.name = row.name
+             SET r.description = row.description
              RETURN COUNT(r)
              LIMIT 1"
     r = get_graph.run_query(query)

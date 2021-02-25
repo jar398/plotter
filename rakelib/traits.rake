@@ -33,7 +33,8 @@ namespace :traits do
     TraitsLoader.new(get_trait_bank.get_graph).load_terms(ENV['TERMS'])
   end
 
-  desc "Transfer resource metadata into the graphdb"
+  desc "Transfer basic resource metadata into Resource nodes in the graphdb:\
+ resource_id,repository_id,name,description"
   task :sync_resource_metadata do
     get_trait_bank.sync_resource_nodes
   end

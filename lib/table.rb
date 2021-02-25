@@ -47,7 +47,7 @@ class Table
                  url: nil,      # for reading over the web...
                  stage: nil,
                  separator: ',',
-                 ignore_lines: 1,
+                 ignore_lines: 1,  # header
                  claes: nil)
     # Provide either one of the following
     @property_vector = property_vector
@@ -219,8 +219,14 @@ class Table
   end
 
   def get_header
-    open_csv_in.close unless @header    # Side effect: sets @header
-    @header
+    if @header
+      @header
+    elsif @property_vector
+      @property_vector.each {|prop| prop.name}
+    else
+      open_csv_in.close     # Side effect: sets @header
+      @header
+    end
   end
 
   def show_info

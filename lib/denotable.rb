@@ -6,7 +6,7 @@ class Denotable
 
   class << self
     def named(name)
-      Registry.by_name(name) || raise("failed to find denotable with name #{name}")
+      Registry.by_name(name) || raise("Failed to find denotable with name #{name}")
     end
   end
 
@@ -36,8 +36,8 @@ class Denotable
     if name != hint
       puts "Using non-colliding #{name} for #{uri}"
     end
-    Registry.register(self)
     @name = name
+    Registry.register(self)
   end
 
 end

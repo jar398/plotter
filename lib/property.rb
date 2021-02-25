@@ -45,7 +45,7 @@ class Property < Denotable
               }
 
     def get(uri, hint = nil)
-      prop = Registry.by_uri(uri) || Property.new(uri, hint)
+      Registry.by_uri(uri) || Property.new(uri, hint)
     end
 
     MAPPING.each do |name, uri|

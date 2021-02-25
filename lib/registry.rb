@@ -19,10 +19,12 @@ class Registry
       if have
         raise "Redundant registration of #{uri}" if obj != have
       end
+      @index_by_uri[obj.uri] = obj
       have = @index_by_name[obj.name]
       if have
         raise "Redundant registration under #{obj.name}" if obj != have
       end
+      @index_by_name[obj.name] = obj
       obj
     end
 
