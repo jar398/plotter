@@ -23,6 +23,7 @@ class Resource
 
   def name; @config["name"]; end
   def id; @config["id"]; end
+  def location; @location; end
 
   def graphdb_id
     @config["id"]

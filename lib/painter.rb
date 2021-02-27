@@ -45,7 +45,7 @@ class Painter
   LIMIT = 1000000
 
   def initialize(resource, trait_bank)
-    @resource = resource
+    @resource = resource     # A graphdb resource
     @chunksize = 10000
     @trait_bank = trait_bank
   end
@@ -59,7 +59,7 @@ class Painter
   end
 
   def get_id
-    @resource.get_id_for_graphdb(@trait_bank)
+    @resource.id
   end
 
   # Infer, stage, and publish
@@ -197,16 +197,8 @@ class Painter
     end
   end
 
-  def inferences_dir
-    path = File.join(@resource.get_export_dir, "inferences")
-    FileUtils.mkdir_p(path)
-    path
-  end
-
-  def temp_dir    # for assert and retract files
-    path = File.join(@resource.get_workspace, "paint")
-    FileUtils.mkdir_p(path)
-    path
+  def temp_dir    # relative dir for assert and retract files
+    @resource.relative_path("inferences")
   end
 
   # Dry run - find all inferences that would be made by branch
@@ -255,7 +247,7 @@ class Painter
       STDERR.puts("No stop-point descendants to remove")
     end
 
-    net_path = File.join(inferences_dir, "inferences.csv")
+    net_path = @resource.export_path(File.join(temp_dir, "inferences.csv"))
 
     # Write net inferences as single CSV (optional)
     # TBD: Use Table class...
@@ -317,7 +309,7 @@ class Painter
     assert_path = 
       run_chunked_query(query,
                         @chunksize,
-                        File.join(temp_dir, "assert.csv"))
+                        @resource.export_path(File.join(temp_dir, "assert.csv")))
     return unless assert_path
 
     # Erase inferred traits from stop point to descendants.
@@ -335,7 +327,7 @@ class Painter
     retract_path =
       run_chunked_query(query,
                         @chunksize,
-                        File.join(temp_dir, "retract.csv"),
+                        @resource.export_path(File.join(temp_dir, "retract.csv")),
                         skipping)
     [assert_path, retract_path]
   end
@@ -343,17 +335,17 @@ class Painter
   # For staging area location and structure see ../README.md
 
   def stage
-    @resource.copy_to_stage("inferences")
+    @resource.location.system.export(temp_dir)
   end
 
   # Assumes resource is staged
 
   def publish(resource = @resource)
-    url = resource.staging_url("inferences")
+    url = resource.staging_url(File.join(temp_dir, "inferences.csv"))
     puts "# Staging URL is #{url}"
 
     # only file in directory, for now
-    table = Table.new(url: "#{url}/inferences.csv")
+    table = Table.new(url: "#{url}")
 
     table.get_part_urls.each do |part_url|
       # row will have strings, but page ids are integers.

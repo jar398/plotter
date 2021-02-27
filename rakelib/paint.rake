@@ -50,7 +50,7 @@ namespace :paint do
     get_painter.count
   end
 
-  desc "Quality control checks"
+  desc "Quality control checks to perform prior to inference"
   task :qc do 
     get_painter.qc
   end
@@ -60,19 +60,19 @@ namespace :paint do
     get_painter.populate
   end
 
-  desc "List start and stop directives"
+  desc "List a resource's start and stop directives"
   task :show_directives do
     get_painter.show_directives
   end
 
   # Subtasks
 
-  desc 'a b c d'
+  desc 'Compute inferred trait relationships and write them to a file'
   task :infer do 
     get_painter.infer
   end
 
-  desc 'move inferences to staging site'
+  desc "Move inferences to staging site"
   task :stage do 
     get_painter.stage
   end

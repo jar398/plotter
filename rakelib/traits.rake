@@ -39,7 +39,7 @@ namespace :traits do
     get_trait_bank.sync_resource_nodes
   end
 
-  desc "List resources have 2 or more versions"
+  desc "List resources that have 2 or more versions"
   task :multiversion do
     tb = get_trait_bank
     pub = tb.get_publishing_location
@@ -84,6 +84,16 @@ namespace :traits do
       r = tb.get_resource_by_id(id)
       rr = r.get_publishing_resource.get_repository_resource
       puts("#{id} #{rr.id} #{count} #{r.name}")
+    end
+  end
+
+  desc "Refresh cached JSON file containing resource records"
+  task :flush do
+    sys = System.system
+    ["prod", "beta"].each do |name|
+      assem = sys.get_trait_bank(name)
+      assem.get_location("publishing").flush_resource_records_cache
+      assem.get_location("repository").flush_resource_records_cache
     end
   end
 

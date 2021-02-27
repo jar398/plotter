@@ -36,19 +36,23 @@ namespace :resource do
     get_in_repo.stage
   end
 
-  desc "Erase all of this resource's contributed information from graphdb"
+  desc "Erase vernaculars from graphdb, for one resource"
   task :erase do
     get_resource.erase
   end
 
-  desc "Load into graphdb from staging site"
+  desc "Load vernaculars into graphdb from staging site"
   task :publish_vernaculars do
     get_resource.publish_vernaculars
   end
 
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
-    get_in_repo.fetch
+    if ENV["ID"]
+      get_resource.fetch
+    else
+      get_in_repo.fetch
+    end
   end
 
   desc "Number of vernacular records in graphdb"
@@ -56,7 +60,7 @@ namespace :resource do
     get_resource.count
   end
 
-  desc "Extract page id map to a file"
+  desc "Extract resource's page id map from repository, writing to file"
   task :map do
     get_in_repo.get_page_id_map() 
     path = get_in_repo.page_id_map_path

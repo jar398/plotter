@@ -10,13 +10,13 @@ namespace :hierarchy do
     System.system.get_trait_bank(tag)
   end
 
-  desc "Create index(es) for dynamic hierarchy"
+  desc "Create index(es) in graphdb of Page nodes"
   task :create_indexes do
     trait_bank = get_trait_bank
     Hierarchy.new(trait_bank).create_indexes()
   end
 
-  desc "Load pages from a file"
+  desc "Load Pages from a csv file"
   task :load do
     file = ENV['PAGES'] || raise("Please provide env var PAGES (file)")
     trait_bank = get_trait_bank
