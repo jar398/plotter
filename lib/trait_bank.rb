@@ -14,7 +14,7 @@ class TraitBank < Location
 
     url = @config["neo4j"]
     if url
-      @graph = Graph.via_neography(url)
+      @graph = Graph.via_neo4j_directly(url)  #Graph.via_neography(url)
     else
       v3api = @system.get_location(@config["via_api"])
       raise "no api" unless v3api

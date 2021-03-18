@@ -8,6 +8,7 @@
 #   instances  - publishing + repository locations
 #   assemblies - pairing of an instance with a graphdb
 
+require 'yaml'
 require 'nokogiri'
 require 'location'
 require 'trait_bank'

@@ -1,4 +1,5 @@
-require 'neography'
+#require 'neography'
+require 'active_graph/railtie'
 
 class Graph
 
@@ -14,10 +15,52 @@ class Graph
     Graph.new(query_fn)
   end
 
-  def self.via_neography(url)
-    connection = Neography::Rest.new(url)
-    query_fn = Proc.new {|cql| connection.execute_query(cql)}
+  # Deprecated - neography is no longer maintained
+  # def self.via_neography(url)
+  #   connection = Neography::Rest.new(url)
+  #   query_fn = Proc.new {|cql| connection.execute_query(cql)}
+  #   Graph.new(query_fn)
+  # end
+
+  def self.via_neo4j_directly(url)
+    query_fn = Proc.new {|cql| direct_query(cql)}
     Graph.new(query_fn)
+  end
+
+  # Copied from https://github.org/eol/eol_website/lib/trait_bank.rb
+  def self.direct_query(q, params={})
+    response = nil
+    q.sub(/\A\s+/, "")
+    response = ActiveGraph::Base.query(q, params, wrap: false)
+
+    return nil if response.nil?
+
+    response_a = response.to_a # NOTE: you must call to_a since the raw response only allows for iterating through once
+
+    # Map neo4j-ruby-driver response to neography-like response
+    cols = response_a.first&.keys || []
+    data = response_a.map do |row|
+      cols.map do |col|
+        col_data = row[col]
+        if col_data.respond_to?(:properties)
+          { 
+            'data' => col_data.properties.stringify_keys,
+            'metadata' => { 'id' => col_data.id }
+          }
+        else
+          col_data
+        end
+      end
+    end
+
+    result = { 
+      'columns' => cols.map { |c| c.to_s }, # hashrocket for string keys
+      'data' => data
+    }
+
+    result['plan'] = response.summary.plan.to_h unless response.summary.plan.nil?
+
+    result
   end
 
   # Replace query_fn if desired with TraitBank::query, some other
