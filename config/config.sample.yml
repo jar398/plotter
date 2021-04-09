@@ -2,99 +2,65 @@
 # publishing is mostly a source of resource identifiers
 # repository is for page id maps
 
-assemblies:
-  test:
-    graphdb: test_graphdb
-    instance: beta
-
-  testp:
-    graphdb: test_graphdb
-    instance: prod
-
-  beta:
-    graphdb: beta_graphdb
-    instance: beta
-
-  prod:
-    graphdb: prod_graphdb
-    instance: prod
-
-instances:
-  test:
-    publishing: test_publishing
-    repository: test_repository
-
-  beta:
-    publishing: beta_publishing
-    repository: beta_repository
-
-  prod:
-    publishing: prod_publishing
-    repository: prod_repository
+# 'all relationships' id 835 something something
 
 locations:
-  workspace:
-    path: '/home/jar/.plotter_workspace'
 
-  test_graphdb:
+  # Local testing graphdb supplied from EOL beta instance
+  test:
     neo4j: 'http://neo4j:eol@localhost:7474'
-    ids_from: beta_publishing
+    publishing: beta_pub
+    resources:
+    - id: 99999
+      name: 'Dummy resource for testing'
+      repository_id: 99999
 
-  staging:
-    rsync_location: 'varela:public_html/eol/staging/'
-    rsync_command: 'rsync -va'
-    url: 'http://varela.csail.mit.edu/~jar/eol/staging/'
+  # Local testing graphdb supplied from EOL production instance
+  ptest:
+    neo4j: 'http://neo4j:eol@localhost:7474'
+    publishing: prod_pub
 
-  concordance:
-    path: 'config/concordance.json'
+  # EOL beta
+  beta:
+    via_api: beta_pub
+    publishing: beta_pub
 
-  beta_graphdb:
-    via_api: beta_publishing
-    ids_from: beta_publishing
-
-  beta_publishing:
+  beta_pub:
+    # Certificate is not valid for beta.eol.org
     url: 'https://beta.eol.org/'
     token_file: 'beta.token'
     update_token_file: 'beta-admin.token'
-    repository: beta_repository
-    resource_records: 'config/beta-publishing/resources.json'
+    repository: beta_repo
 
-  beta_repository:
+  beta_repo:
     url: 'https://beta-repo.eol.org/'
+    resources:
+    - id: 723
+      name: 'EOL Dynamic Hierarchy 1.1'
+      opendataUrl: https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/00adb47b-57ed-4f6b-8f66-83bfdb5120e8
 
-  prod_graphdb:
-    via_api: prod_publishing
-    ids_from: prod_publishing
+    - id: 550
+      name: '000_English Vernaculars for Landmark Taxa'
+      opendataUrl: 'https://opendata.eol.org/dataset/english-vernaculars-for-landmark-taxa/resource/4b1ad94f-0d20-47f1-8a43-c2cb0d670da4'
 
-  prod_publishing:
+  # EOL production
+  prod:
+    via_api: prod_pub
+    publishing: prod_pub
+
+  prod_pub:
     url: 'https://eol.org/'
     token_file: '/home/jar/eol/production.token'
-    update_token_file: '/home/jar/eol/production-admin.token'
-    repository: prod_repository
-    resource_records: 'config/prod-publishing/resources.json'
+    #update_token_file: '/home/jar/eol/production-admin.token'
+    repository: prod_repo
 
-  prod_repository:
+  prod_repo:
     url: 'https://content.eol.org/'
 
-resources:
-- name: 'EOL Dynamic Hierarchy 0.9'
-  landing_page: https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/1b375a39-4739-45ba-87cd-328bdd50ec34
+  workspace:
+    path: '/home/jar/.plotter_workspace'
 
-- name: 'EOL Dynamic Hierarchy 1.1'
-  landing_page: https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/00adb47b-57ed-4f6b-8f66-83bfdb5120e8
-
-- name: 'English Vernaculars for Landmark Taxa'
-  landing_page: 'https://opendata.eol.org/dataset/english-vernaculars-for-landmark-taxa/resource/4b1ad94f-0d20-47f1-8a43-c2cb0d670da4'
-
-- name: 'Wikidata'
-  landing_page: 'https://opendata.eol.org/dataset/wikimedia/resource/925d229f-1811-4c89-91f7-9950565d0a22'
-
-- name: 'ecology literature'
-  landing_page: 'https://opendata.eol.org/dataset/marine-ecology-literature/resource/87e24999-d19a-4dda-a880-b812d6135f0f'
-
-- name: 'all relationships'
-  landing_page: 'https://opendata.eol.org/dataset/terms-relationships/resource/2affbe5a-4bd6-4e8c-b19c-f65f9dafd078'
-
-- name: 'Dummy resource for testing'
-  id: 9999
-  repository_id: 9999
+  staging:
+    rsync_command: 'rsync -vaR'
+    rsync_specifier: 'varela:public_html/eol/stage'
+    url: 'http://varela.csail.mit.edu/~jar/eol/stage'

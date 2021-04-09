@@ -78,6 +78,7 @@ class System
   def initialize(config)    # config could have been json serialized
     @config = config
     @locations = {}
+    raise "No locations configured" unless config["locations"]
     config["locations"].each do |loc_tag, config|
       # Kludge!  There has to be a better way to determine this
       if config.include?("neo4j") || config.include?("via_api")
