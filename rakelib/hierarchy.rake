@@ -6,7 +6,7 @@ require 'hierarchy'
 namespace :hierarchy do
 
   def get_trait_bank(tag)
-    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
+    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'CONF=test')")
     System.system.get_trait_bank(tag)
   end
 

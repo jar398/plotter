@@ -1,4 +1,5 @@
 #require 'neography'
+require 'base64'
 
 class Graph
 
@@ -114,7 +115,7 @@ class Graph
     use_ssl = (uri.scheme == "https")
     Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl) do |http|
       request = Net::HTTP::Post.new(uri)
-      request['Authorization'] = "Basic bmVvNGo6bmVvNGoy"
+      request['Authorization'] = "Basic #{Base64.encode64(uri.userinfo).strip}"
       # was: ;charset=UTF-8
       request['Accept'] = "application/json;charset=UTF-8"
       request['Content-type'] = "application/json"
