@@ -8,7 +8,7 @@ locations:
 
   # Local testing graphdb supplied from EOL beta instance
   test:
-    neo4j: 'http://neo4j:eol@localhost:7474'
+    neo4j: 'http://neo4j:password@localhost:7474'
     publishing: beta_pub
     resources:
     - id: 99999
@@ -17,7 +17,7 @@ locations:
 
   # Local testing graphdb supplied from EOL production instance
   ptest:
-    neo4j: 'http://neo4j:eol@localhost:7474'
+    neo4j: 'http://neo4j:password@localhost:7474'
     publishing: prod_pub
 
   # EOL beta
