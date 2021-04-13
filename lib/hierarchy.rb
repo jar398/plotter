@@ -33,14 +33,32 @@ class Hierarchy
       run_query("CREATE INDEX ON :Page(page_id)")
   end
 
-  def load(filename)
-    puts "Loading page records from #{filename}"
+  def load(resource)
+    pages_url = resource.staging_url(resource.relative_path("accepted.csv"))
+    urls = System.system.read_manifest(pages_url)
+    if urls
+      # First, create the Page nodes.
+      urls.each do |url|
+        load_pages(url)
+      end
+      # Second, set the parent pointers.
+      urls.each do |url|
+        patch_parents(url, "parentEOLid")
+      end
+    else
+      load_pages(pages_url)
+      patch_parents(pages_url, "parentEOLid")
+    end
+  end
+
+  def load_pages(pages_url)
+    puts "Loading page records from #{pages_url}"
     # First, create a Page node for each page id
     # EOLid,parentEOLid,taxonRank,canonicalName,scientificName,
-    #   taxonomicStatus,landmark,taxonID
+    #   taxonomicStatus,Landmark
     # We need a URL for the file !... hmm
     query = "USING PERIODIC COMMIT
-             LOAD CSV WITH HEADERS FROM '#{filename}'
+             LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
              WITH row, toInteger(row.EOLid) AS page_id
              MERGE (page:Page {page_id: page_id})
@@ -53,15 +71,12 @@ class Hierarchy
     raise "Page table load failed" unless r 
     n = r["data"][0][0]
     puts "#{n} page records loaded"
-
-    # Second, set the parent pointers.
-    patch_parents(filename, "parentEOLid")
   end
 
   # Patch parent links
 
-  def patch_parents(filename, parent_field = "to")
-    puts "Patching parent links according to #{filename}"
+  def patch_parents(pages_url, parent_field = "to")
+    puts "Patching parent links according to #{pages_url}"
     if parent_field == "to"
       # The stupid 'WITH row' is a workaround for a pointless Cypher clause 
       # syntax restriction 
@@ -75,7 +90,7 @@ class Hierarchy
       w2 = ""
     end
     query = "USING PERIODIC COMMIT
-             LOAD CSV WITH HEADERS FROM '#{filename}'
+             LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
              #{w}
              WITH row,
@@ -96,10 +111,10 @@ class Hierarchy
 
   # Patch other fields
 
-  def patch_field(filename, column, prop)
+  def patch_field(pages_url, column, prop)
     puts "Patching property #{prop} from column #{column}"
     query = "USING PERIODIC COMMIT
-             LOAD CSV WITH HEADERS FROM '#{filename}'
+             LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
              WITH row
              WHERE row.field = '#{column}'
@@ -127,10 +142,10 @@ class Hierarchy
 
   # Delete nodes.  Maybe check first to see which ones have traits?
 
-  def delete(filename)
-    puts "Deleting pages listed in #{filename}"
+  def delete(pages_url)
+    puts "Deleting pages listed in #{pages_url}"
     query = "USING PERIODIC COMMIT
-             LOAD CSV WITH HEADERS FROM '#{filename}'
+             LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
              WITH row,
                   toInteger(row.EOLid) AS page_id

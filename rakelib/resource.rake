@@ -48,11 +48,7 @@ namespace :resource do
 
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
-    if ENV["ID"]
-      get_resource.fetch
-    else
-      get_in_repo.fetch
-    end
+    get_in_repo.fetch
   end
 
   desc "Number of vernacular records in graphdb"

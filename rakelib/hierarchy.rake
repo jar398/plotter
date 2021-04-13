@@ -18,9 +18,9 @@ namespace :hierarchy do
 
   desc "Load Pages from a csv file"
   task :load do
-    file = ENV['PAGES'] || raise("Please provide env var PAGES (file)")
+    rr = get_in_repo
     trait_bank = get_trait_bank
-    Hierarchy.new(trait_bank).load(file)
+    Hierarchy.new(trait_bank).load(rr)
   end
   task :patch_parents do
     file = ENV['CHANGES'] || raise("Please provide env var CHANGES (change.csv file)")
@@ -41,6 +41,13 @@ namespace :hierarchy do
     file = ENV['DEST'] || raise("Please provide destination file name")
     trait_bank = get_trait_bank
     Hierarchy.new(trait_bank).dump(file)
+  end
+
+  def get_in_repo                  # utility
+    tb = get_trait_bank
+    rid = ENV['REPO_ID'] || raise("Please provide env var REPO_ID")
+    repo = tb.get_publishing_location.get_repository_location
+    repo.get_resource_by_id(rid.to_i)
   end
 
 end

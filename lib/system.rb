@@ -56,6 +56,7 @@ class System
         url = specifier
         puts "# Get #{url}"
         strng = Net::HTTP.get(URI.parse(url))
+        # TBD: check whether success return.
       else
         strng = File.read(specifier)
       end
@@ -200,7 +201,7 @@ class System
     "#{get_staging_root_url}/#{relative}"
   end
 
-  # For each directory in a tree, write a manifest.json that lists the
+  # For each directory in a tree, write a .manifest.json that lists the
   # files in the directory.  This makes the tree traversable by a
   # web client.
 
@@ -208,13 +209,28 @@ class System
     if File.directory?(path)
       # Prepare one manifest
       names = Dir.glob("*", base: path)
+      names = names.select{|name| not name.start_with?(".")}
+      # tbd: filter out dotfiles
       if path.end_with?(".chunks")
-        man = File.join(path, "manifest.json")
-        puts "Writing #{man}"
-        File.write(man, names)
+        man = File.join(path, ".manifest.json")
+        STDERR.puts "Writing #{man}"
+        File.write(man, JSON.generate(names))
       end
       # Recur
       names.each {|name| prepare_manifests(File.join(path, name))}
+    end
+  end
+
+  def read_manifest(url)
+    base_url = url + ".chunks/"
+    response = Net::HTTP.get_response(URI(base_url + ".manifest.json"))
+    if response.kind_of? Net::HTTPSuccess
+      names = JSON.parse(response.body)
+      puts "#{names.size} chunks"
+      names.collect{|name| base_url + name}
+    else
+      STDERR.puts "No manifest for #{base_url}"
+      nil
     end
   end
 

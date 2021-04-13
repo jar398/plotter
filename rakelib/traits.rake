@@ -63,7 +63,7 @@ namespace :traits do
   end
 
   desc "Show resources that have traits"
-  task :foo do
+  task :traitless do
     tb = get_trait_bank
     graph = tb.get_graph
     results = graph.run_query(
@@ -95,6 +95,13 @@ namespace :traits do
       assem.get_location("publishing").flush_resource_records_cache
       assem.get_location("repository").flush_resource_records_cache
     end
+  end
+
+  desc "Prepare manifest for directory"
+  task :manifest do
+    dir = ENV['DIR']
+    raise "Please specify DIR=..." unless dir
+    System.system.prepare_manifests(dir)
   end
 
 end

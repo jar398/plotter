@@ -122,8 +122,9 @@ class Table
 
   def get_part_urls
     raise("Not on Internet: #{@path}") unless @url
+    # System.system.read_manifest(@url)
     base_url = @url + ".chunks/"
-    response = Net::HTTP.get_response(URI(base_url + "manifest.json"))
+    response = Net::HTTP.get_response(URI(base_url + ".manifest.json"))
     if response.kind_of? Net::HTTPSuccess
       names = JSON.parse(response.body)
       puts "#{names.size} chunks"
