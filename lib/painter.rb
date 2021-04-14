@@ -197,7 +197,7 @@ class Painter
     end
   end
 
-  def temp_dir    # relative dir for assert and retract files
+  def inf_dir    # relative dir for assert and retract files
     @resource.relative_path("inferences")
   end
 
@@ -247,7 +247,7 @@ class Painter
       STDERR.puts("No stop-point descendants to remove")
     end
 
-    net_path = @resource.export_path(File.join(temp_dir, "inferences.csv"))
+    net_path = @resource.workspace_path(File.join(inf_dir, "inferences.csv"))
 
     # Write net inferences as single CSV (optional)
     # TBD: Use Table class...
@@ -309,7 +309,7 @@ class Painter
     assert_path = 
       run_chunked_query(query,
                         @chunksize,
-                        @resource.export_path(File.join(temp_dir, "assert.csv")))
+                        @resource.workspace_path(File.join(inf_dir, "assert.csv")))
     return unless assert_path
 
     # Erase inferred traits from stop point to descendants.
@@ -327,7 +327,7 @@ class Painter
     retract_path =
       run_chunked_query(query,
                         @chunksize,
-                        @resource.export_path(File.join(temp_dir, "retract.csv")),
+                        @resource.workspace_path(File.join(inf_dir, "retract.csv")),
                         skipping)
     [assert_path, retract_path]
   end
@@ -335,13 +335,13 @@ class Painter
   # For staging area location and structure see ../README.md
 
   def stage
-    @resource.location.system.export(temp_dir)
+    @resource.location.system.stage(File.join(inf_dir, "inferences.csv"))
   end
 
   # Assumes resource is staged
 
   def publish(resource = @resource)
-    url = resource.staging_url(File.join(temp_dir, "inferences.csv"))
+    url = resource.staging_url(File.join(inf_dir, "inferences.csv"))
     puts "# Staging URL is #{url}"
 
     # only file in directory, for now

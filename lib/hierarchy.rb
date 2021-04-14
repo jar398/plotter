@@ -33,8 +33,26 @@ class Hierarchy
       run_query("CREATE INDEX ON :Page(page_id)")
   end
 
-  def load(resource)
-    pages_url = resource.staging_url(resource.relative_path("accepted.csv"))
+  def prepare_pages_table(resource)
+    raise "NYI"
+=begin
+    rake resource:map CONF=prod REPO_ID=817
+    mkdir -p ~/.plotter_workspace/prod_repo/resources/817/pages
+    pylib/start.py --input ~/.plotter_workspace/dwca/db5120e8/unpacked/taxon.tab |\
+      pylib/map.py --mapping ~/.plotter_workspace/prod_repo/resources/817/page_id_map.csv |\
+      pylib/project.py --keep EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark |\
+      pylib/shunt.py --synonyms ~/.plotter_workspace/prod_repo/resources/817/pages/synonyms.csv \
+        > ~/.plotter_workspace/prod_repo/resources/817/pages/accepted.csv
+    bin/splitcsv ~/.plotter_workspace/prod_repo/resources/817/pages/accepted.csv
+=end
+  end
+
+  def stage
+    system.stage(@trait_bank.relative_path("pages"))
+  end
+
+  def load_pages_table
+    pages_url = @trait_bank.staging_url(@trait_bank.relative_path("pages/accepted.csv"))
     urls = System.system.read_manifest(pages_url)
     if urls
       # First, create the Page nodes.

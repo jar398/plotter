@@ -16,7 +16,7 @@ class Location
   # ----------
 
   # Path to root of tree containing various artifacts, relative to
-  # workspace root, export root, or staging area root
+  # workspace root or staging area root
   def relative_path(basename)
     File.join(name, basename)
   end
@@ -26,9 +26,9 @@ class Location
     raise "#{relative} not in #{name}" unless relative.start_with?(name)
     system.workspace_path(relative)
   end
-  def export_path(relative)
+  def staging_url(relative)
     raise "#{relative} not in #{name}" unless relative.start_with?(name)
-    system.export_path(relative)
+    system.staging_url(relative)
   end
 
   # ----------
@@ -83,20 +83,22 @@ class Location
   # Incomplete caching implementation here... should be timeout based
   # Returns a vector of hashes {"id":NNN, ...}
 
-  def load_rails_resource_records(cachep = false)   # Returns an array
+  def load_resources_json(cachep = false)   # Returns an array
+    site = @config["url"]
+    return [] unless site
     if @config.key?("resource_records")
       # Ideally this would be cached in the instance workspace
       # when_cached = workspace_path("resource_records.csv")
       when_cached = @config["resource_records"]    # maybe nil
       puts "# Resource records when cached would be at #{when_cached}"
       unless File.exists?(when_cached)
-        url = "#{get_url}resources.json?per_page=100000"
+        url = "#{site}resources.json?per_page=100000"
         puts "# Reading #{url}"
         System.copy_from_internet(url, when_cached)
       end
       obj = System.load_json(when_cached)
     else
-      url = "#{get_url}resources.json?per_page=100000"
+      url = "#{site}resources.json?per_page=100000"
       obj = System.load_json(url)
     end
     if obj.key?("resources")
@@ -117,63 +119,65 @@ class Location
     end
   end
 
+  # Combine resource records from publishing server ('rails') with
+  # those found in config.yml
+
   def get_own_resource_records
     return @records_by_id if @records_by_id
-    records = load_rails_resource_records
-    # records is a vector
-    raise "bad records" unless records[0]["id"]
-    finish_records(records)    # returns a ... hash? .values ?
-  end
 
-  def finish_records(records)  # records must be a vector
-    @records_by_id = {}
-    process_records(records)
+    # Get records from resources.json, if location is a rails site
+    record_list = load_resources_json
+    # record_list is a vector
+    if record_list.length > 0
+      raise "bad records" unless record_list[0]["id"]
+    end
+    records = process_records(record_list, {})
+
+    # Get records and record modifications from config file, if any
     configured = @config["resources"]
-    process_records(configured) if configured
-    @records_by_id
+    process_records(configured, records) if configured
+
+    @records_by_id = records
+    records
   end
 
   # Side-affects @records_by_id
-  def process_records(records)
+  def process_records(records, hash)
     records.each do |r|
       id = r["id"]
       raise "Record #{r["name"]} has no id" unless id
-      probe = @records_by_id[id]
+      probe = hash[id]
       if probe
         r = merge_records(r, probe, id)
       end
-      @records_by_id[id] = r
+      hash[id] = r
     end
+    hash
   end
 
   def merge_records(record, record2, id)
+    return record unless record2
+    return record2 unless record
     record = record.merge(record2) do |key, oldval, newval|
       if oldval != newval
-        puts "** Conflict over value of property #{key} of resource #{id} in #{name}"
-        puts "** Keeping configured = #{oldval}, ignoring instance = #{newval}"
-        oldval
-      else
-        newval
+        puts "** Conflict over value of property #{key} of resource #{id}"
+        puts "** Overriding site's value #{oldval} with configured value #{newval}"
       end
+      newval
     end
     record if record.size > 0
   end
 
-  # This is overridden in trait_bank
-  def get_resource_records
-    get_own_resource_records
-  end
-
   # For graphdb... and ... other kinds of locations too?
   # Overridden in trait_bank.rb
-  def get_resource_record_by_id(id)
-    get_resource_records
+  def get_own_resource_record(id)
+    get_own_resource_records
     @records_by_id[id.to_i]
   end
 
   # For ID= on rake command line... get graphdb resource
-  def get_resource_by_id(id)
-    record = get_resource_record_by_id(id)
+  def get_own_resource(id)
+    record = get_own_resource_record(id)
     resource_from_record(record) if record
   end
 
@@ -188,14 +192,14 @@ class Location
   end
 
   # For pub/repo resources
-  def get_own_resource_by_id(id)
+  def get_own_resource(id)
     get_own_resource_records
     record = @records_by_id[id.to_i]
     resource_from_record(record) if record
   end
 
   def id_to_name(id)
-    rec = get_resource_record_by_id(id)
+    rec = get_own_resource_record(id)
     raise "** No resource with id #{id} in #{@name}." unless rec
     rec["name"]
   end

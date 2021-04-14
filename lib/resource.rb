@@ -31,7 +31,7 @@ class Resource
 
   # ---------- 
 
-  # Path to be combined with workspace root, export root, or staging root
+  # Path to be combined with workspace root or staging URL
   def relative_path(basename)
     @location.relative_path(File.join("resources",
                                       id.to_s,
@@ -42,27 +42,24 @@ class Resource
     @location.workspace_path(relative)
   end
 
-  def export_path(relative)
-    @location.export_path(relative)
-  end
-
   # This is not a function of the resource or location... maybe
   # shouldn't even be a method on this class
   def staging_url(relative)
-    "#{@location.system.get_staging_root_url}/#{relative}"
+    # error if resource id not in relative string??
+    @location.staging_url(relative)
   end
 
   # ----------
 
   # Assume ids are consistent between graphdb and publishing
   def get_publishing_resource
-    @location.get_publishing_location.get_own_resource_by_id(id)
+    @location.get_publishing_location.get_own_resource(id)
   end
 
   def get_repository_resource
     rid = @config["repository_id"]
     return nil unless rid
-    @location.get_repository_location.get_own_resource_by_id(rid)
+    @location.get_repository_location.get_own_resource(rid)
   end
 
   # ---------- Processing stage 1: copy DWCA from opendata to workspace
@@ -74,7 +71,7 @@ class Resource
     unless lp_url
       rid = id
       loc = @location
-      rec = loc.get_resource_record_by_id(rid)
+      rec = loc.get_own_resource_record(rid)
       raise "No repository resource record for #{name} = #{rid}" \
         unless rec
       lp_url = rec["opendataUrl"]
@@ -135,7 +132,7 @@ class Resource
     relative = relative_path(File.join("vernaculars", basename))
     out_table = Table.new(property_vector: out_props,
                           basename: basename,
-                          path: export_path(relative))
+                          path: workspace_path(relative))
 
     # Prepare for mapping node ids to page ids, which we do if we have
     # a node id and want a page id
@@ -211,12 +208,12 @@ class Resource
     csv_in.close
   end
 
-  # ---------- Processing stage 4: copy resource's export directory to
+  # ---------- Processing stage 4: copy ... stuff ... to
   # staging area on server
 
   def stage
     @location.assert_repository
-    @location.system.export(relative_path("."))
+    @location.system.stage(relative_path("."))
   end
 
   # ---------- Processing stage 5: compute delta
@@ -423,7 +420,6 @@ class Resource
     rel = relative_path("")
     puts "  relative path: #{rel}"
     puts "  workspace path: #{workspace_path(rel)}"
-    puts "  export path: #{export_path(rel)}"
     puts "  staging url: #{staging_url(rel)}"
 
     pr = get_publishing_resource
@@ -441,7 +437,6 @@ class Resource
     rrel = relative_path("")
     puts "  relative path: #{rrel}"
     puts "  workspace path: #{workspace_path(rrel)}"
-    puts "  export path: #{export_path(rrel)}"
     puts "  staging url: #{staging_url(rrel)}"
     puts "Opendata landing page URL: #{get_landing_page_url}"
     puts ""

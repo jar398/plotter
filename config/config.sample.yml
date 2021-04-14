@@ -7,7 +7,7 @@
 locations:
 
   # Local testing graphdb supplied from EOL beta instance
-  test:
+  btest:
     neo4j: 'http://neo4j:password@localhost:7474'
     publishing: beta_pub
     resources:
@@ -48,10 +48,12 @@ locations:
     via_api: prod_pub
     publishing: prod_pub
 
+  # update_token_file is dangerous - enables modification of the graphdb.
+  # Un-comment the location if you're ready to do updates.
   prod_pub:
     url: 'https://eol.org/'
-    token_file: '/home/jar/eol/production.token'
-    #update_token_file: '/home/jar/eol/production-admin.token'
+    token_file: 'production.token'
+    #update_token_file: 'production-admin.token'
     repository: prod_repo
 
   prod_repo:

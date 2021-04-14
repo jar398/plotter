@@ -23,13 +23,18 @@ class TraitBank < Location
     @graph
   end
 
-  # Parse and cache a resource's collection of resource records
+  # Parse and cache a traitbank's collection of resource records
   # Array -> nil (for side effects)
   def get_resource_records
-    return @records_by_id if @records_by_id
-    records = get_publishing_location.get_own_resource_records
-    # records is a hash
-    finish_records(records.values)
+    records = get_own_resource_records.clone
+    get_publishing_location.get_own_records.each do |key, rec|
+      records[key] = @location.merge_records(records[key], rec, key)
+    end
+    records
+  end
+
+  def get_resource(id)
+    get_own_resource(id) or get_publishing_location.get_own_resource(id)
   end
 
   # ----------------------------------------------------------------------
@@ -47,8 +52,8 @@ class TraitBank < Location
   def prepare_resource_table
     fname = "resources.csv"
     rel = relative_path(fname)
-    path = export_path(rel)
-    puts "# Preparing resource table; export path = #{path}"
+    path = workspace_path(rel)
+    puts "# Preparing resource table; path = #{path}"
     table = Table.new(header: ["resource_id", "repository_id", "name", "description"],
                       basename: fname,
                       path: path)
@@ -63,7 +68,7 @@ class TraitBank < Location
   def load_resource_table(table)
     puts("# Copying resource table from #{table.path} to stage")
     # 1. scp to staging host.
-    url = system.export(relative_path(table.basename))
+    url = system.stage(relative_path(table.basename))
     puts("# Staging URL is #{url}")
 
     # 2. LOAD CSV

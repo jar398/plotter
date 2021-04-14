@@ -97,26 +97,14 @@ class System
     dir
   end
 
-  def get_export_root
-    dir = File.join(get_workspace_root, "export")
-    FileUtils.mkdir_p(dir)
-    dir
-  end
-
   def workspace_path(relative)
     p = File.join(get_workspace_root, relative)
     FileUtils.mkdir_p(File.dirname(p))
     p
   end
 
-  def export_path(relative)
-    p = File.join(get_export_root, relative)
-    FileUtils.mkdir_p(File.dirname(p))
-    p
-  end
-
-  def get_staging_root_url
-    get_staging_location.get_url
+  def staging_url(relative)
+    "#{get_staging_location.get_url}/#{relative}"
   end
 
   def get_staging_location; get_location("staging"); end
@@ -173,21 +161,21 @@ class System
   end
 
   # ----------------------------------------------------------------------
-  # Export: copy file(s) from local export area to staging server.
+  # Stage: copy file(s) from workspace to staging server.
 
-  # Relative is a relative path to be joined to the export area root or stage.
+  # Relative is a relative path to be joined to the stage url.
   # It should not end in a '/'.
 
-  def export(relative)
+  def stage(relative)
     raise "Relative path ends in /" if relative.end_with?("/")
-    local = export_path(relative) # /.../test/export/relative
+    local = workspace_path(relative) # /.../test/relative
     prepare_manifests(local)
 
     spec    = get_staging_location.get_rsync_specifier
     command = get_staging_location.get_rsync_command
     #remote = "#{spec}/#{relative}"
     #line = "#{command} \"#{local}\" \"#{remote}\""
-    line = "#{command} \"#{get_export_root}/./#{relative}\" \"#{spec}/\""
+    line = "#{command} \"#{get_workspace_root}/./#{relative}\" \"#{spec}/\""
     STDERR.puts("# #{line}")
     stdout_string, status = Open3.capture2("#{line}")
     STDERR.puts("# Status: [#{status}] stdout: [#{stdout_string}]")
@@ -195,10 +183,6 @@ class System
 
     # Return URL for subsequent access via LOAD CSV
     staging_url(relative)
-  end
-
-  def staging_url(relative)
-    "#{get_staging_root_url}/#{relative}"
   end
 
   # For each directory in a tree, write a .manifest.json that lists the

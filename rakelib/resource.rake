@@ -10,7 +10,7 @@ namespace :resource do
 
   def get_resource
     id = ENV['ID'] || raise("Please provide env var ID")
-    get_trait_bank.get_resource_by_id(id.to_i)
+    get_trait_bank.get_resource(id.to_i)
   end
 
   def get_in_repo                  # utility
@@ -18,7 +18,7 @@ namespace :resource do
     rid = ENV['REPO_ID']
     if rid
       repo = tb.get_publishing_location.get_repository_location
-      repo.get_resource_by_id(rid.to_i)
+      repo.get_resource(rid.to_i)
     else
       puts "** No REPO_ID, getting latest version of ID=#{ENV['ID']}"
       get_resource.get_publishing_resource.get_repository_resource

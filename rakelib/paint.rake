@@ -14,11 +14,11 @@ namespace :paint do
     tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
     id = ENV['ID'] || testing_resource
     id = id.to_i
-    assem = System.system.get_trait_bank(tag)
-    resource = assem.get_resource_by_id(id)
+    tb = System.system.get_trait_bank(tag)
+    resource = tb.get_resource(id)
     raise "No resource #{id} in #{tag}" unless resource
     puts "Resource #{id} on #{tag} is understood as '#{resource.name}'"
-    Painter.new(resource, assem)
+    Painter.new(resource, tb)
   end
 
   # Ordinary tasks

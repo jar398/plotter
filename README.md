@@ -15,20 +15,30 @@ Modify paths in config.yml as needed:
   scripts can do their work and (in some cases) leave their results.
 
 * `locations: staging:` is used by scripts that modify the graphdb.
-  For `LOAD CSV`, a directory is required that neo4j can read via HTTP,
+  For operations that do `LOAD CSV`, a directory is required that neo4j can read via HTTP,
   and there must be a way for the scripts to write to the same directory.  The
-  `scp_location` is used in an `rsync` command to transfer files from
+  `rsync_specifier` is used in an `rsync` command to transfer files from
   the local workspace to the HTTP area.  In order for `rsync` to work,
-  appropriate `ssh` credentials have to be in place.
+  appropriate `ssh` credentials hoave to be in place.  They can be specified
+  in `~/.ssh/config` or with an -I argument in the `rsync_command`.
 
-* `locations: staging: url:` is the URL for the HTTP
+* `locations: staging: url:` is  the URL for the HTTP
   area, which is accessed by LOAD CSV commands.
 
-Obtain a v3 API token ([documentation here](https://github.com/EOL/eol_website/blob/master/doc/api.md)) and put it in a file.  The file location is
+Obtain a v3 API token 
+([documentation here](https://github.com/EOL/eol_website/blob/master/doc/api.md))
+and put it in a file.  The file location is
 configured in `token_file:` (for a 'power user' account) or
 `update_token_file:` (for an admin account that can make changes to the
-graphdb).  Obviously it shouldn't say `/home/jar`.
+graphdb).
 
+## Choosing a configuration
+
+Most `rake` commands require a `CONF=` parameter to specify which
+graphdb configuration is to be used.  The configurations are listed in
+`config.yml` but are typically `test` (for a private testing
+instance), `beta` (EOL beta instance), or `prod` (EOL production
+instance).
 
 ## All-traits dump
 
@@ -48,31 +58,44 @@ Workspace root comes from config.yml (via system.rb).  Currently set
 to /home/jar/.plotter_workspace.
 
   (workspace root):
-    dwca:
-      NNN/  ... one directory per DwCA ... id = lower 8 chars of uuid ?
-        properties.json
+    dwca/
+      NNN/  ... one directory per DwCA ... id = final 8 chars of uuid
+        properties.json     ... metadata for this DwCA
         dwca.zip or dwca.tgz
         unpacked:
           meta.xml
-          (all the other tsv or csv files)
-    prod:
-      publishing-resources.json  (cached)
-      repository-resources.json  (cached)
-      resources:    ... one resource-in-repository
-        TAG.PID.RID/  ... one per instance + publishing id + repository id
-          paint:     - temporary directory for intermediate files
+          (all the other .tsv or .csv files)
+    prod_pub/
+      resources/
+        ID/  ... one per publishing resource id
+          paint/     - temporary directory for intermediate files
             assert.csv
             retract.csv
           (any other intermediate files: cached things, page id 
             map, reports, etc; none at present)
-      staging:     (exactly parallels a directory tree on the staging server)
-        TAG.PID.RID/  ... one per instance + publishing id + repository id
-         - vernaculars/vernaculars.csv
-         - inferences/inferences.csv
-    beta:
+    prod_repo/
+      resources/
+        ID/  ... one per repository resource id
+          page_id_map.csv
+      publishing-resources.json  (optional, cached)
+      repository-resources.json  (optional, cached)
+    beta_pub/
+    beta_repo/
       ... same structure ...
-    (other instance):
-
+    export/     ... files are copied from here to the staging site ...
+      prod_pub/
+        resources/
+          ID/
+            inferences/
+              inferences.csv
+        resources.csv
+      prod_repo/
+        resources/
+          ID/
+      beta_pub/
+      beta_repo/
+      ptest/
+        resources.csv
 
 An 'instance' is a (publishing, repository) server pair.
 TAG is either 'prod' or 'beta' (never 'test').

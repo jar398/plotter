@@ -44,10 +44,10 @@ namespace :traits do
     tb = get_trait_bank
     pub = tb.get_publishing_location
     repo = pub.get_repository_location
-    pids = pub.get_own_resource_records.keys
+    pids = pub.get_site_resource_records.keys
     puts "# #{pids.size} resources in publishing repo"
     pids.sort.each do |pid|
-      pr = pub.get_resource_by_id(pid)
+      pr = pub.get_own_resource(pid)
       rr = pr.get_repository_resource
       if rr
         vs = rr.versions
@@ -81,7 +81,7 @@ namespace :traits do
              RETURN COUNT(t)
              LIMIT 1")
       count = more["data"][0][0]
-      r = tb.get_resource_by_id(id)
+      r = tb.get_resource(id)
       rr = r.get_publishing_resource.get_repository_resource
       puts("#{id} #{rr.id} #{count} #{r.name}")
     end
