@@ -48,26 +48,19 @@ The default zip file destination (`ZIP`) has a form similar to
 `traitbank_TAG_YYYYMM.zip` where `TAG` in the pathname is
 the page id (`ID`) or `all`.
 
-For this mode, there are two additional environment variables:
+    rake traits:dump CONF=beta ID=7674 CHUNK=50000
 
- - `SERVER`: must end with `/`.  The EOL server to contact for the requests.
-   Default `https://eol.org/`.
- - `TOKEN`: a 'power user' API token.
-
-E.g.
-
-    export SERVER=https://eol.org/
-    export TOKEN=  ... your 'power user' API token ...
-    export CHUNK=50000
-    ruby -r ./lib/traits_dumper.rb -e TraitsDumper.main
-
-For the record, the following command comleted successfully on
+For the record, the following command completed successfully on
 varela.csail.mit.edu on 29 May 2019:
 
     TEMP=/wd/tmp/all_201905 CHUNK=10000 TOKEN=`cat ~/a/eol/api.token` time \
       ruby -r ./lib/traits_dumper.rb -e TraitsDumper.main
 
-`TEMP` is redirected because the default `/tmp/...` is on a file
+which should be equivalent to the more modern form
+
+    time rake traits:dump CONF=prod CHUNK=10000 TEMP=/wd/tmp/all_201905
+
+`TEMP` is redirected in case the default `/tmp/...` is on a file
 system lacking adequate space for this task.  `CHUNK` is set to 10000
 because an earlier run with `CHUNK=20000` failed with a timeout.
 
@@ -79,11 +72,11 @@ corresponds to the web site URL with path `/data/downloads/`, and the
 filename as described above, giving the clade (when specified) and
 current month.
 
-### `dump_traits:dump`
+### `rake traits:dump`
 
 Generates a ZIP file dump of the entire traitbank graphdb.
 
-### `dump_traits:smoke`
+### `rake traits:smoke`
 
 This is for testing only.  Same as `dump` but defaults `ID` to 7674
 (Felidae) and `CHUNK` to 1000.
@@ -93,11 +86,11 @@ This is for testing only.  Same as `dump` but defaults `ID` to 7674
 Tests to do in sequence (easier to harder):
 
   1. Smoke test (Carnivora): \
-         `bundle exec rake traits:dump CONF=prod ID=7662`
+         `rake traits:dump CONF=prod ID=7662`
      - check that the files in the .zip file are nonempty and seem 
        plausible, then delete the .zip file in the workspace
   2. Vertebrates:\
-         `time bundle exec rake traits:dump CONF=prod ID=2774383`
+         `time rake traits:dump CONF=prod ID=2774383`
      - you can delete the .zip
   3. All life: - this takes a long time, maybe 8 hours -\
-         `time bundle exec rake traits:dump CONF=prod`
+         `time rake traits:dump CONF=prod`

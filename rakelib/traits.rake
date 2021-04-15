@@ -15,16 +15,17 @@ namespace :traits do
   desc "Dump traits, either for entire hierarchy or a subtree"
   task :dump do
     trait_bank = get_trait_bank
-    puts "Workspace is #{trait_bank.get_workspace}"
+    ws = System.system.workspace_path(trait_bank.relative_path(""))
+    puts "Workspace is #{ws}"
 
     clade = ENV['ID']           # page id, possibly nil
     tempdir = ENV['TEMP'] ||    # temp dir = where to put intermediate csv files
-              File.join(trait_bank.get_workspace, "dump-#{clade || 'all'}")
+              File.join(ws, "dump-#{clade || 'all'}")
     FileUtils.mkdir_p(tempdir)
     if ENV.key?('CHUNK')
       chunksize = ENV['CHUNK'].to_i    # possibly nil
     end
-    dest = ENV['ZIP'] || trait_bank.get_workspace    # ?
+    dest = ENV['ZIP'] || ws    # ?
     TraitsDumper.new(trait_bank.get_graph, chunksize, tempdir).dump_traits(dest, clade)
   end
 

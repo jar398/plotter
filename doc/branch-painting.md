@@ -54,9 +54,10 @@ The following commands are supported
 * `show_directives` - lists all of a resource's branch painting directives
   (a directive is a 'start' or 'stop' metadata node)
 * `count` - print a count of the resource's already-published inferred trait 
-  assertions, from a previous painting run (should be 0 before any new painting)
+  assertions, from a previous painting run (you could check that it's 0 
+  before any new painting)
 * `qc` - run a series of quality control queries to identify problems
-  with the resource's painting directives
+  with the resource's painting directives.  Requires human review of output.
 * `infer` - determine a resource's inferred trait assertions (based on
   directives), and write them to a set of files in the workspace
 * `stage` - copy inferences files from local workspace to staging area
@@ -69,7 +70,8 @@ The following commands are supported
 The choice of command, and any parameters, are communicated via
 the `rake` syntax `variable=value paint:command`.
 
-The complete sequence of operations, if one is being very careful, would be:
+Although `rake paint:paint` is sufficient, the complete sequence of
+operations, if one is being very careful, might be:
 
  1. Set up the plotter config file; see below
  2. Publish a new version of the resource
@@ -103,35 +105,7 @@ resource's painting directives are well formed.
 
 ## Configuration
 
-Copy `config/config.sample.yml` to `config/config.yml` and edit the
-configuration directives as appropriate for your local `plotter`
-installation.
-
- 1. Set `locations:workspace:path` to a local directory where plotter can put files
- 1. Set `prod_publishing:token_file` to be the local file that contains (or will contain)
-    a v3 API token; similarly for beta.  (see note, below)
-     1. Obtain a production admin token using 
-        `https://beta.eol.org/services/authenticate` or
-        `https://eol.org/services/authenticate`
-        (see [API documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md))
-     1. Put the token in a file
-     1. Set `prod_publishing:token_file` to the path to that file
- 1. Configure the staging server `locations:staging`.  The staging server must handle `scp`
-        commands (similar to `ssh`) that allow the local `rake` commands to place files in 
-        a directory that is visible via HTTP from the Neo4J server(s).
-        The config file needs both the `scp` destination location, so that plotter can write the inferred trait assertions to staging, and
-        the HTTP location, so that neo4j can read them.  The examples in `config.sample.yml` should provide guidance.
-     1. `rsync_location` specifies the target directory on the staging server, prefixed by the
-        server name as understood by `ssh` (either a DNS name or a name configured in
-        `~/.ssh/config`)
-     1. `rsync_command` specifies the `rsync`-like command to use to transfer local files
-        to the staging server (this string does not include the source or target).  
-        If not specified, defaults to `rsync -av`.
-     1. `url` gives the prefix for URLs that will occur in neo4j `LOAD CSV` commands.
-     1. If the local machine has a suitable directory, with an HTTP server visible to neo4j,
-        the staging area can be configured to be that directory.  In this case the 
-        `scp_location` does not contain a colon and `url` points to the local machine.
-
+See [README.md](../README.md)
 
 ## Notes
 
