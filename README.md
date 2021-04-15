@@ -17,21 +17,27 @@ Copy `config/config.sample.yml` to `config/config.yml` and edit the
 configuration directives as appropriate for your local `plotter`
 installation.
 
- 1. Set `locations:workspace:path` to a local directory where the plotter scripts 
+ 1. Set `locations: workspace: path:` to a local directory where the plotter scripts 
     can put results and intermediate files
- 1. Set `prod_publishing:token_file` to be the local file that contains (or will contain)
+ 1. Set `prod_pub: token_file:` to be the local file that contains (or will contain)
     a v3 API token; similarly for beta.  (see note, below)
-     1. Obtain a production admin token using 
+     1. Obtain a read token for the graphdb, and if you'll be writing as well, also obtain 
+        a write token.  The write token must be associated with an admin account; a read 
+        token can be associated with any account but using a non-admin account is a 
+        bit more secure.  If using an admin account the read and write tokens will be the same.
+     1. To obtain a token, go to
         `https://beta.eol.org/services/authenticate` or
         `https://eol.org/services/authenticate`
-        (see [API documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md))
-     1. Put the token in a file
-     1. Set `prod_publishing:token_file` to the path to that file
+        as the case may be
+        (see [API documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md)).
+     1. Put the token into a file.
+     1. Set `prod_pub: token_file:` (or `beta_pub: token_file:` or `prod_pub: update_token_file:` 
+        etc.) to the path to that file.
  1. Configure the staging server `locations: staging:`.  The directory on the 
-        staging server has to be writable via `rsync`
-        commands (similar to `scp` and `ssh`) invoked by plotter scripts,
-        and readable by the Neo4j server(s) via HTTP.
-        The examples in `config.sample.yml` should provide guidance.
+        staging server has to be writable via the `rsync`
+        command, which is used by plotter scripts,
+        and it has to be readable by the Neo4j server(s) via HTTP.
+        The examples in `config.sample.yml` should provide guidance on how to set these variables.
      1. `rsync_specifier` specifies the target directory on the staging server, prefixed by the
         server name as understood by `ssh` (either a DNS name or a name configured in
         `~/.ssh/config`)
@@ -39,7 +45,7 @@ installation.
         to the staging server (this string does not include the source or target).  
         If not specified, defaults to `rsync -av`.
      1. `url` gives the prefix for the URLs that will occur in neo4j `LOAD CSV` commands.
-     1. If the local machine has a suitable directory, with an HTTP server visible to neo4j,
+     1. If the local machine has a suitable directory, exposed via an HTTP server to neo4j,
         the staging area can be configured to be that directory.  In this case the 
         `rsync_specifier` does not contain a colon and `url` points to the local machine.
      1. It may be possible to use the neo4j `import` directory with `file:///` URLs, but 
