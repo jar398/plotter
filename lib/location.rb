@@ -35,6 +35,12 @@ class Location
 
   # If this is a publishing instance, return the associated repository instance
 
+  def get_publishing_location
+    probe = @config["publishing"]
+    raise "No publishing instance associated with location #{name}" unless probe
+    system.get_location(probe)
+  end
+
   def get_repository_location
     probe = @config["repository"]
     raise "No repository instance associated with location #{name}" unless probe
@@ -74,7 +80,19 @@ class Location
 
   def assert_repository
     if @config["publishing"] || @config["repository"]
-      raise "Attempt to get staging directory for non-repository #{name}"
+      raise "Attempt to use non-repository #{name} as repository"
+    end
+  end
+
+  def assert_publishing
+    unless @config["repository"]
+      raise "Attempt to use non-publishing #{name} as publishing"
+    end
+  end
+
+  def assert_graphdb
+    unless @config["publishing"]
+      raise "Attempt to use non-graphdb #{name} as graphdb"
     end
   end
 

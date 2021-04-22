@@ -51,12 +51,20 @@ class Resource
 
   # ----------
 
+  def receive_metadata(hash)
+    @config = @location.merge_records(@config, hash, id)
+  end
+
+  # ----------
+
   # Assume ids are consistent between graphdb and publishing
   def get_publishing_resource
+    @location.assert_graphdb
     @location.get_publishing_location.get_own_resource(id)
   end
 
   def get_repository_resource
+    @location.assert_publishing
     rid = @config["repository_id"]
     return nil unless rid
     @location.get_repository_location.get_own_resource(rid)
@@ -95,6 +103,7 @@ class Resource
   #   convert local unpacked copy of dwca to files for graphdb
 
   def fetch
+    @location.assert_repository
     get_dwca.ensure_unpacked          # Extract meta.xml and so on
   end
 

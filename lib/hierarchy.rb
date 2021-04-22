@@ -15,7 +15,8 @@
 
 class Hierarchy
 
-  def initialize(trait_bank)
+  def initialize(repo_resource, trait_bank)
+    @resource = repo_resource
     @trait_bank = trait_bank
     @chunksize = 500000
   end
@@ -33,56 +34,74 @@ class Hierarchy
       run_query("CREATE INDEX ON :Page(page_id)")
   end
 
-  def prepare_pages_table(resource)
+  def prepare_pages_table
+    # create directory
+    w = System.system.workspace_path(resource.relative_path("pages"))
     raise "NYI"
-=begin
-    rake resource:map CONF=prod REPO_ID=817
-    mkdir -p ~/.plotter_workspace/prod_repo/resources/817/pages
-    pylib/start.py --input ~/.plotter_workspace/dwca/db5120e8/unpacked/taxon.tab |\
-      pylib/map.py --mapping ~/.plotter_workspace/prod_repo/resources/817/page_id_map.csv |\
-      pylib/project.py --keep EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark |\
-      pylib/shunt.py --synonyms ~/.plotter_workspace/prod_repo/resources/817/pages/synonyms.csv \
-        > ~/.plotter_workspace/prod_repo/resources/817/pages/accepted.csv
-    bin/splitcsv ~/.plotter_workspace/prod_repo/resources/817/pages/accepted.csv
-=end
+    map_path = @resource.get_page_id_map
+    input = File.join(unpacked, "taxon.tab")
+    columns = "EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark"
+    output = File.join(w, "accepted.csv")
+    value = 
+      %x( pylib/start.py --input #{input} |\
+          pylib/map.py --mapping #{map_path} |\
+          pylib/project.py --keep #{columns} |\
+          pylib/shunt.py --synonyms #{File.join(w, "synonyms.csv")} \
+            > #{output}
+          bin/splitcsv #{output} )
+    raise "Status code #{value}" unless value == 0
   end
 
   def stage
-    system.stage(@trait_bank.relative_path("pages"))
+    system.stage(@resource.relative_path("pages"))
   end
 
-  def load_pages_table
-    pages_url = @trait_bank.staging_url(@trait_bank.relative_path("pages/accepted.csv"))
+  # This is like load, but never creates new Page nodes, only sets
+  # properties on existing ones
+
+  def sync_metadata
+    pages_url = System.system.staging_url(@resource.relative_path("pages/accepted.csv"))
+    urls = System.system.read_manifest(pages_url)
+    if urls
+      urls.each do |url|
+        load_pages_chunk(url, op = "MATCH")
+      end
+    else
+      load_pages_chunk(pages_url)
+    end
+  end
+
+  def load
+    pages_url = System.system.staging_url(@resource.relative_path("pages/accepted.csv"))
     urls = System.system.read_manifest(pages_url)
     if urls
       # First, create the Page nodes.
       urls.each do |url|
-        load_pages(url)
+        load_pages_chunk(url)
       end
       # Second, set the parent pointers.
       urls.each do |url|
         patch_parents(url, "parentEOLid")
       end
     else
-      load_pages(pages_url)
+      load_pages_chunk(pages_url)
       patch_parents(pages_url, "parentEOLid")
     end
   end
 
-  def load_pages(pages_url)
+  def load_pages_chunk(pages_url, op = "MERGE")
     puts "Loading page records from #{pages_url}"
     # First, create a Page node for each page id
     # EOLid,parentEOLid,taxonRank,canonicalName,scientificName,
     #   taxonomicStatus,Landmark
-    # We need a URL for the file !... hmm
     query = "USING PERIODIC COMMIT
              LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
              WITH row, toInteger(row.EOLid) AS page_id
-             MERGE (page:Page {page_id: page_id})
+             #{op} (page:Page {page_id: page_id})
              SET page.rank = row.taxonRank
              SET page.canonical = row.canonicalName
-             SET page.landmark = row.landmark
+             SET page.landmark = row.Landmark
              RETURN COUNT(page)
              LIMIT 100000000"
     r = run_query(query)

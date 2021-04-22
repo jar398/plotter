@@ -4,45 +4,55 @@ require 'system'
 require 'hierarchy'
 
 namespace :hierarchy do
-
   desc "Create index(es) in graphdb of Page nodes"
   task :create_indexes do
-    Hierarchy.new(get_in_repo).create_indexes()
+    get_hierarchy.create_indexes()
   end
 
   desc "Load Pages from csv files"
   task :load do
-    Hierarchy.new(get_in_repo).load_pages_table
+    get_hierarchy.load
+  end
+
+  desc "Synchronize Page metadata with csv files"
+  task :sync_metadata do
+    get_hierarchy.sync_metadata
   end
 
   # Not sure these make sense any more
 
   task :patch_parents do
     file = ENV['CHANGES'] || raise("Please provide env var CHANGES (change.csv file)")
-    Hierarchy.new(get_in_repo).patch_parents(file)
+    get_hierarchy.patch_parents(file)
   end
   task :patch do
     dir = ENV['PATCH'] || raise("Please provide env var PATCH (directory)")
-    Hierarchy.new(get_in_repo).patch(dir)
+    get_hierarchy.patch(dir)
   end
   task :delete do
     file = ENV['PAGES'] || raise("Please provide env var PAGES (file)")
-    Hierarchy.new(get_in_repo).delete(file)
+    get_hierarchy.delete(file)
   end
   task :dump do
     file = ENV['DEST'] || raise("Please provide destination file name")
-    Hierarchy.new(get_in_repo).dump(file)
+    get_hierarchy.dump(file)
   end
 
-  def get_in_repo                  # utility
-    tb = get_trait_bank
-    rid = ENV['REPO_ID'] || raise("Please provide env var REPO_ID")
-    repo = tb.get_publishing_location.get_repository_location
-    repo.get_own_resource(rid.to_i)
-  end
-  def get_trait_bank(tag)
+  def get_hierarchy
     tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'CONF=test')")
-    System.system.get_trait_bank(tag)
+    tb = System.system.get_trait_bank(tag)
+    rid = ENV['REPO_ID']
+    if rid
+      repo = tb.get_publishing_location.get_repository_location
+      resource = repo.get_own_resource(rid.to_i)
+    else
+      id = ENV['ID']
+      id || raise("Please provide env var REPO_ID or ID")
+      pub = tb.get_publishing_location
+      pub_resource = pub.get_own_resource(id.to_i)
+      resource = pub_resource.get_repository_resource
+    end
+    Hierarchy.new(resource, tb)
   end
 
 end

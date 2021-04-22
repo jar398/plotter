@@ -13,12 +13,12 @@ namespace :resource do
     get_trait_bank.get_resource(id.to_i)
   end
 
-  def get_in_repo                  # utility
+  def get_repo_resource                  # utility
     tb = get_trait_bank
     rid = ENV['REPO_ID']
     if rid
       repo = tb.get_publishing_location.get_repository_location
-      repo.get_resource(rid.to_i)
+      repo.get_own_resource(rid.to_i)
     else
       puts "** No REPO_ID, getting latest version of ID=#{ENV['ID']}"
       get_resource.get_publishing_resource.get_repository_resource
@@ -28,12 +28,12 @@ namespace :resource do
   desc "Load resource from opendata and store vernaculars on staging site"
   task :prepare_vernaculars do 
     get_resource.harvest
-    get_in_repo.stage
+    get_repo_resource.stage
   end
 
   desc "Put onto staging site"
   task :stage do
-    get_in_repo.stage
+    get_repo_resource.stage
   end
 
   desc "Erase vernaculars from graphdb, for one resource"
@@ -48,7 +48,7 @@ namespace :resource do
 
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
-    get_in_repo.fetch
+    get_repo_resource.fetch
   end
 
   desc "Number of vernacular records in graphdb"
@@ -58,8 +58,8 @@ namespace :resource do
 
   desc "Extract resource's page id map from repository, writing to file"
   task :map do
-    get_in_repo.get_page_id_map() 
-    path = get_in_repo.page_id_map_path
+    get_repo_resource.get_page_id_map() 
+    path = get_repo_resource.page_id_map_path
     puts "Page id map is at #{path}"
   end
 
@@ -70,11 +70,11 @@ namespace :resource do
 
   desc "Show miscellaneous information about a resource version"
   task :version_info do
-    get_in_repo.show_repository_info()
+    get_repo_resource.show_repository_info()
   end
 
   task :tables do
-    tables = get_in_repo.get_dwca.get_tables.values
+    tables = get_repo_resource.get_dwca.get_tables.values
     tables.each do |t|
       # Do this up front for less cluttered output
       t.get_header

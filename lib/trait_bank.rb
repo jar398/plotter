@@ -26,15 +26,20 @@ class TraitBank < Location
   # Parse and cache a traitbank's collection of resource records
   # Array -> nil (for side effects)
   def get_resource_records
-    records = get_own_resource_records.clone
-    get_publishing_location.get_own_records.each do |key, rec|
-      records[key] = @location.merge_records(records[key], rec, key)
+    unless @resources
+      get_own_resources
+
+      records = get_own_resource_records.clone
+      get_publishing_location.get_own_records.each do |key, rec|
+        records[key] = @location.merge_records(records[key], rec, key)
+      end
+      @resources = records
     end
-    records
+    @resource
   end
 
   def get_resource(id)
-    get_own_resource(id) or get_publishing_location.get_own_resource(id)
+    get_resources[id]
   end
 
   # ----------------------------------------------------------------------
