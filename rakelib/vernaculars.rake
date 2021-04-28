@@ -1,7 +1,7 @@
 require 'system'
 require 'resource'
 
-namespace :resource do
+namespace :vernaculars do
 
   def get_trait_bank
     tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
@@ -20,7 +20,7 @@ namespace :resource do
       repo = tb.get_publishing_location.get_repository_location
       repo.get_own_resource(rid.to_i)
     else
-      puts "** No REPO_ID, getting latest version of ID=#{ENV['ID']}"
+      puts "No REPO_ID, getting latest version of ID=#{ENV['ID']}"
       get_resource.get_publishing_resource.get_repository_resource
     end
   end
@@ -28,7 +28,7 @@ namespace :resource do
   desc "Load resource from opendata and store vernaculars on staging site"
   task :prepare do 
     get_resource.harvest
-    get_repo_resource.stage
+    get_repo_resource.stage_vernaculars
   end
 
   desc "Put onto staging site"

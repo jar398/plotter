@@ -20,7 +20,7 @@ namespace :resource do
       repo = tb.get_publishing_location.get_repository_location
       repo.get_own_resource(rid.to_i)
     else
-      puts "** No REPO_ID, getting latest version of ID=#{ENV['ID']}"
+      puts "No REPO_ID, getting latest version of ID=#{ENV['ID']}"
       get_resource.get_publishing_resource.get_repository_resource
     end
   end

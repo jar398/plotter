@@ -225,6 +225,11 @@ class Resource
     @location.system.stage(relative_path("."))
   end
 
+  def stage_vernaculars
+    @location.assert_repository
+    @location.system.stage(relative_path("vernaculars"))
+  end
+
   # ---------- Processing stage 5: compute delta
 
   # TBD
@@ -294,12 +299,15 @@ class Resource
     # Need to chunk this.
     query = "LOAD CSV WITH HEADERS FROM '#{url}'
              AS row
-             WITH row, toInteger(row.page_id) AS page_id
+             WITH row,
+                  toInteger(row.page_id) AS page_id,
+                  toInteger(row.is_preferred_name) AS preferred
              MATCH (r:Resource {resource_id: #{id_in_graph}})
-             MERGE (:Page {page_id: page_id})-[:vernacular]->
+             MATCH (p:Page {page_id: page_id})
+             MERGE (p)-[:vernacular]->
                    (:Vernacular {string: row.vernacular_string,
                                  language_code: row.language_code,
-                                 is_preferred_name: row.is_preferred_name})-[:supplier]->
+                                 is_preferred_name: preferred})-[:supplier]->
                    (r)
              RETURN COUNT(row)
              LIMIT 1"

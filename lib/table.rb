@@ -176,17 +176,22 @@ class Table
   def get_header
     return @header if @header
     # Make up column headings based on column properties
-    header =
-      get_property_vector.collect do |prop|
-        if prop
-          STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
-          (prop.name || prop.uri.split("/")[-1])
-        else
-          "?"
+    pv = get_property_vector
+    if pv
+      header =
+        pv.collect do |prop|
+          if prop
+            STDERR.puts("URI has no short name: #{prop.uri}") unless prop.name
+            (prop.name || prop.uri.split("/")[-1])
+          else
+            "?"
+          end
         end
-      end
-    puts "Header: #{header.join(',')}"
-    @header = header
+      STDERR.puts "Header: #{header.join(',')}"
+      @header = header
+    else
+      open_csv_in.close     # Side effect: sets @header
+    end
     @header
   end
 
@@ -217,17 +222,6 @@ class Table
       FileUtils.rm(raw)
     end
     dir
-  end
-
-  def get_header
-    if @header
-      @header
-    elsif @property_vector
-      @property_vector.each {|prop| prop.name}
-    else
-      open_csv_in.close     # Side effect: sets @header
-      @header
-    end
   end
 
   def show_info

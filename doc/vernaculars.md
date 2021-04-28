@@ -6,7 +6,7 @@
     * `supplier` - link to the `Resource` node that provides the vernacular
     * `string` - property, the vernacular name
     * `language_code` - property
-    * `is_preferred_name` - property (boolean)
+    * `is_preferred_name` - property (integer)
 
  * `vernacular` - one-to-many link from `Page` node to `Vernacular` node
 
