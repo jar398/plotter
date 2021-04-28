@@ -3,17 +3,17 @@
 ## Changes to the Neo4j schema
 
  * `Vernacular` - node type
-    * `supplier` - link to the Resource that provides the vernacular
+    * `supplier` - link to the `Resource` node that provides the vernacular
     * `string` - property, the vernacular name
     * `language_code` - property
     * `is_preferred_name` - property (boolean)
 
- * vernacular - one-to-many link from Page node to Vernacular node
+ * `vernacular` - one-to-many link from `Page` node to `Vernacular` node
 
 ## What the EOL publishing logic will need to do
 
  * When removing a resource, remove every `Vernacular` supplied by that resource
- * When populating the graphdb from a resource, create a `Vernacular` node for each vernacular, with properties as above, linked to the `supplier` Resource node
+ * When populating the graphdb from a resource, create a `Vernacular` node for each vernacular, with properties as above, linked via `supplier` to its `Resource` node
 
 ## Using plotter to populate the graphdb with vernaculars
 
