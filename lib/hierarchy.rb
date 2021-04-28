@@ -41,14 +41,16 @@ class Hierarchy
     map_path = @resource.get_page_id_map
     input = File.join(unpacked, "taxon.tab")
     columns = "EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark"
-    output = File.join(w, "accepted.csv")
+    pages_csv = File.join(w, "pages.csv")
+    names_csv = File.join(w, "names.csv")
     value = 
       %x( pylib/start.py --input #{input} |\
           pylib/map.py --mapping #{map_path} |\
           pylib/project.py --keep #{columns} |\
-          pylib/shunt.py --synonyms #{File.join(w, "synonyms.csv")} \
-            > #{output}
-          bin/splitcsv #{output} )
+          pylib/names.py --names #{names_csv} \
+            > #{pages_csv}
+          bin/splitcsv #{pages_csv}
+          bin/splitcsv #{names_csv} )
     raise "Status code #{value}" unless value == 0
   end
 
@@ -60,7 +62,7 @@ class Hierarchy
   # properties on existing ones
 
   def sync_metadata
-    pages_url = System.system.staging_url(@resource.relative_path("pages/accepted.csv"))
+    pages_url = System.system.staging_url(@resource.relative_path("pages/pages.csv"))
     urls = System.system.read_manifest(pages_url)
     if urls
       urls.each do |url|
@@ -72,7 +74,7 @@ class Hierarchy
   end
 
   def load
-    pages_url = System.system.staging_url(@resource.relative_path("pages/accepted.csv"))
+    pages_url = System.system.staging_url(@resource.relative_path("pages/pages.csv"))
     urls = System.system.read_manifest(pages_url)
     if urls
       # First, create the Page nodes.
