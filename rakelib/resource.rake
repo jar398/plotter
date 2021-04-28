@@ -25,35 +25,9 @@ namespace :resource do
     end
   end
 
-  desc "Load resource from opendata and store vernaculars on staging site"
-  task :prepare_vernaculars do 
-    get_resource.harvest
-    get_repo_resource.stage
-  end
-
-  desc "Put onto staging site"
-  task :stage do
-    get_repo_resource.stage
-  end
-
-  desc "Erase vernaculars from graphdb, for one resource"
-  task :erase do
-    get_resource.erase
-  end
-
-  desc "Load vernaculars into graphdb from staging site"
-  task :publish_vernaculars do
-    get_resource.publish_vernaculars
-  end
-
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
     get_repo_resource.fetch
-  end
-
-  desc "Number of vernacular records in graphdb"
-  task :count_vernaculars do
-    get_resource.count
   end
 
   desc "Extract resource's page id map from repository, writing to file"
