@@ -178,7 +178,7 @@ class Resource
         # in_pos = column of this property in the input table, if any
         if in_pos != nil
           value = row_in[in_pos]
-          if value
+          if value !- nil
             value
           else
             puts "** No #{out_prop.name} at row #{counter}" if counter < 10
@@ -301,15 +301,15 @@ class Resource
              AS row
              WITH row,
                   toInteger(row.page_id) AS page_id,
-                  toInteger(row.is_preferred_name) AS preferred
+                  toInteger(row.is_preferred_name) AS pref
              MATCH (r:Resource {resource_id: #{id_in_graph}})
              MATCH (p:Page {page_id: page_id})
              MERGE (p)-[:vernacular]->
-                   (:Vernacular {string: row.vernacular_string,
-                                 language_code: row.language_code,
-                                 is_preferred_name: preferred})-[:supplier]->
+                   (v:Vernacular {string: row.vernacular_string,
+                                  code: row.language_code})-[:supplier]->
                    (r)
-             RETURN COUNT(row)
+             SET v.is_preferred_name = pref
+             RETURN COUNT(v)
              LIMIT 1"
     r = @location.get_graph.run_query(query)
     count = r ? r["data"][0][0] : 0
@@ -328,17 +328,21 @@ class Resource
     return @page_id_map if @page_id_map
 
     path = page_id_map_path
-    if File.exist?(path)
-      puts "Reading page id map from #{path}"
-      csv = CSV.open(path, "r:UTF-8", col_sep: ",", quote_char: '"')
-      csv.shift
-      page_id_map = {}
-      csv.each do |row_in|
-        (node_id, page_id) = row_in
-        page_id_map[node_id] = page_id.to_i
-      end
-      @page_id_map = page_id_map
-    else
+    puts "Reading page id map from #{path}"
+    csv = CSV.open(path, "r:UTF-8", col_sep: ",", quote_char: '"')
+    csv.shift
+    page_id_map = {}
+    csv.each do |row_in|
+      (node_id, page_id) = row_in
+      page_id_map[node_id] = page_id.to_i
+    end
+    @page_id_map = page_id_map
+    @page_id_map
+  end
+
+  def page_id_map_path
+    path = workspace_path(relative_path("page_id_map.csv"))
+    unless File.exist?(path)
       puts "Writing page id map to #{path}"
       @page_id_map = fetch_page_id_map
       csv_out = CSV.open(path, "w:UTF-8")
@@ -348,11 +352,7 @@ class Resource
       end
       csv_out.close
     end
-    @page_id_map
-  end
-
-  def page_id_map_path
-    workspace_path(relative_path("page_id_map.csv"))
+    path
   end
 
   # Method applicable to a repository resource

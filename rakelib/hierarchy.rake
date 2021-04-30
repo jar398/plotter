@@ -9,6 +9,13 @@ namespace :hierarchy do
     get_hierarchy.create_indexes()
   end
 
+  desc "Prepare csv files for loading into graphdb"
+  task :prepare do
+    h = get_hierarchy
+    h.prepare_pages_table
+    h.stage
+  end
+
   desc "Load Pages from csv files"
   task :load do
     get_hierarchy.load

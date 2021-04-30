@@ -35,23 +35,22 @@ class Hierarchy
   end
 
   def prepare_pages_table
-    # create directory
-    w = System.system.workspace_path(resource.relative_path("pages"))
-    raise "NYI"
-    map_path = @resource.get_page_id_map
-    input = File.join(unpacked, "taxon.tab")
-    columns = "EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark"
-    pages_csv = File.join(w, "pages.csv")
-    names_csv = File.join(w, "names.csv")
+    pages_csv = System.system.workspace_path(@resource.relative_path("pages/pages.csv"))
+    names_csv = System.system.workspace_path(@resource.relative_path("pages/names.csv"))
+    map_path = @resource.page_id_map_path
+    in_table = @resource.get_dwca.get_table(Claes.taxon)
+    input = in_table.path  #was File.join(unpacked, "taxon.tab")
+    keep_columns = "EOLid,acceptedEOLid,parentEOLid,scientificName,taxonRank,taxonomicStatus,canonicalName,Landmark"
     value = 
       %x( pylib/start.py --input #{input} |\
           pylib/map.py --mapping #{map_path} |\
-          pylib/project.py --keep #{columns} |\
+          pylib/project.py --keep #{keep_columns} |\
           pylib/names.py --names #{names_csv} \
             > #{pages_csv}
           bin/splitcsv #{pages_csv}
           bin/splitcsv #{names_csv} )
-    raise "Status code #{value}" unless value == 0
+    STDERR.puts("Value = #{value}")
+    STDERR.puts("Wrote #{pages_csv} and #{names_csv}")
   end
 
   def stage

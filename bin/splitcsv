@@ -7,12 +7,24 @@
 
 set -e
 FILE="$1"
+CHUNK=100000
 DIR="$FILE".chunks
 
-mkdir -p "$DIR"
-tail --lines=+2 "$FILE" | split --lines=100000 - "$DIR"/
-for f in "$DIR"/*; do
-    echo "adding header line -> $f.csv"
-    (head -1 "$FILE"; cat "$f") >"$f".csv
+if [ ! -r "$FILE" ]; then
+  if [ ! -d "$DIR" ]; then
+    echo "no such file: $FILE"
+    exit 1
+  else
+    exit 0
+  fi
+elif [ `wc -l $FILE | (read x y; echo $x)` -gt 1 ]; then
+  rm -rf "$DIR"
+  mkdir -p "$DIR"
+  tail --lines=+2 "$FILE" | split --lines=$CHUNK - "$DIR"/
+  for f in "$DIR"/*; do
+    echo "adding header line to $f.csv"
+    (head --lines=1 "$FILE"; cat "$f") >"$f".csv
     rm "$f"
-done
+  done
+  rm "$FILE"
+fi
