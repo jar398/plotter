@@ -112,7 +112,7 @@ class Resource
   # Similar to ResourceHarvester.new(self).start
   #  in app/models/resource_harvester.rb
 
-  def harvest
+  def harvest_vernaculars
     rr = get_publishing_resource.get_repository_resource
     vern_table = rr.get_dwca.get_table(Claes.vernacular_name)
     if vern_table
@@ -178,7 +178,9 @@ class Resource
         # in_pos = column of this property in the input table, if any
         if in_pos != nil
           value = row_in[in_pos]
-          if value !- nil
+          if out_prop == Property.is_preferred_name
+            (value == nil) || (value.to_i > 0)
+          elsif value != nil
             value
           else
             puts "** No #{out_prop.name} at row #{counter}" if counter < 10
@@ -203,7 +205,7 @@ class Resource
           end
         elsif out_prop == Property.is_preferred_name
           # Default value associated with this property
-          1
+          true
         else
           puts "** Need column for property #{out_prop.name}" if counter < 10
           -456
@@ -215,6 +217,8 @@ class Resource
     puts "#{counter} data rows in csv file"
     csv_out.close
     csv_in.close
+    # Table can be large.  Default chunk size is 100000
+    out_table.split(chunk_size = 50000)
   end
 
   # ---------- Processing stage 4: copy ... stuff ... to
@@ -280,6 +284,8 @@ class Resource
     publish_vernaculars
   end
 
+  # Assumes it has already been staged (on staging server)...
+
   def publish_vernaculars     # slurp
     rr = get_publishing_resource.get_repository_resource
 
@@ -287,33 +293,33 @@ class Resource
     url = rr.staging_url(rel)
     puts "# Staging URL is #{url}"
 
-    id_in_graph = id
-
     # Make sure the resource node is there
+    id_in_graph = id
     @location.get_graph.run_query(
-      "MERGE (r:Resource {resource_id: #{id_in_graph},
-                          name: \"#{self.name}\"})
+      "MERGE (r:Resource {resource_id: #{id_in_graph}})
        RETURN r.resource_id
        LIMIT 1")
 
-    # Need to chunk this.
-    query = "LOAD CSV WITH HEADERS FROM '#{url}'
-             AS row
-             WITH row,
-                  toInteger(row.page_id) AS page_id,
-                  toInteger(row.is_preferred_name) AS pref
-             MATCH (r:Resource {resource_id: #{id_in_graph}})
-             MATCH (p:Page {page_id: page_id})
-             MERGE (p)-[:vernacular]->
-                   (v:Vernacular {string: row.vernacular_string,
-                                  code: row.language_code})-[:supplier]->
-                   (r)
-             SET v.is_preferred_name = pref
-             RETURN COUNT(v)
-             LIMIT 1"
-    r = @location.get_graph.run_query(query)
-    count = r ? r["data"][0][0] : 0
-    STDERR.puts("Merged #{count} relationships from #{url}")
+    table = Table.new(url: "#{url}")
+    table.get_part_urls.each do |part_url|
+      query = "LOAD CSV WITH HEADERS FROM '#{part_url}'
+               AS row
+               WITH row,
+                    toInteger(row.page_id) AS page_id,
+                    toBoolean(row.is_preferred_name) AS pref
+               MATCH (r:Resource {resource_id: #{id_in_graph}})
+               MATCH (p:Page {page_id: page_id})
+               MERGE (p)-[:vernacular]->
+                     (v:Vernacular {string: row.vernacular_string,
+                                    language_code: row.language_code})-[:supplier]->
+                     (r)
+               SET v.is_preferred_name = pref
+               RETURN COUNT(v)
+               LIMIT 1"
+      r = @location.get_graph.run_query(query)
+      count = r ? r["data"][0][0] : 0
+      STDERR.puts("Merged #{count} relationships from #{part_url}")
+    end
   end
 
   # ---------- Taxon (node) id to page id map

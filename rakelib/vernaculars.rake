@@ -27,7 +27,7 @@ namespace :vernaculars do
 
   desc "Load resource from opendata and store vernaculars on staging site"
   task :prepare do 
-    get_resource.harvest
+    get_resource.harvest_vernaculars
     get_repo_resource.stage_vernaculars
   end
 

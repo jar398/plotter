@@ -121,7 +121,7 @@ class Table
   # List of URLs: the chunks, if split, or the main file, if unsplit
 
   def get_part_urls
-    raise("Not on Internet: #{@path}") unless @url
+    raise("Not on Internet: #{@basename} #{path}") unless @url
     # System.system.read_manifest(@url)
     base_url = @url + ".chunks/"
     response = Net::HTTP.get_response(URI(base_url + ".manifest.json"))
@@ -204,23 +204,23 @@ class Table
   end
 
   def split(chunk_size = 100000)
+    raise "Local path not specified for table" unless @path
+    raise "No CSV file for table: #{@path}" unless File.exists?(@path)
     dir = @path + ".chunks"
-    return dir if File.exists?(@dir)
-
-    raise("No CSV file for table: #{@path}") unless File.exists?(@path)
-    File.mkdir(dir) unless File.exists?(dir)
+    FileUtils.mkdir_p(dir)
 
     first_line = `head -1 "#{@path}"`
     puts "split: First line is #{first_line}"
 
     `tail --lines=+2 "#{@path}" | split --lines=#{chunk_size} - "#{dir}"/`
-    File.glob("#{dir}/??").each do |name|
-      raw = File.join(dir, name)
+    Dir.glob("#{dir}/??").each do |raw|
       dest = "#{raw}.csv"
-      puts "Adding header line to #{raw} to get #{dest}"
+      puts "Adding header line to get #{dest}"
       `(echo "#{first_line}"; cat "#{raw}") >"#{dest}"`
       FileUtils.rm(raw)
     end
+    puts "split: Removing #{@path}"
+    FileUtils.rm(@path)
     dir
   end
 
