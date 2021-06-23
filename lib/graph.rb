@@ -4,7 +4,8 @@ require 'faraday_middleware'
 
 class Graph
 
-  def self.read_timeout; 10; end
+  def self.read_timeout; 100; end
+  def self.open_timeout; 20; end
 
   # Talk to neo4j directly using the neo4j transaction API.
 
@@ -108,8 +109,8 @@ class Graph
       headers['Content-type'] = "application/json"
       body = JSON.generate({'statements': [{"statement": cql}]})
       response = conn.post(uri, body = body, headers = headers) do |req|
-        req.options.timeout = 1
-        req.options.open_timeout = 1
+        req.options.timeout = read_timeout
+        req.options.open_timeout = open_timeout
       end
       code = response.status
       message = response.reason_phrase
@@ -155,8 +156,8 @@ class Graph
       # no body
       # Do post or get depending on command???
       response = conn.post(uri, body = "query=#{escaped}", headers = headers) do |req|
-        req.options.timeout = 1
-        req.options.open_timeout = 1
+        req.options.timeout = read_timeout
+        req.options.open_timeout = open_timeout
       end
       code = response.status
       message = response.reason_phrase
