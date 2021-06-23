@@ -228,7 +228,7 @@ class Location
                  @config["token_file"]
     token = File.read(token_path).strip
     puts "# Graphdb proxy URL is #{get_url}"
-    Graph.via_http(get_url, token)
+    Graph.via_eol_server(get_url, token)
   end
 
 end

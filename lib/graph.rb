@@ -1,4 +1,6 @@
 require 'base64'
+require 'faraday'
+require 'faraday_middleware'
 
 class Graph
 
@@ -16,10 +18,10 @@ class Graph
   # neo4j requests via the v3 EOL web API (eol_website app /
   # publishing server)
 
-  def self.via_http(eol_api_url, token)
+  def self.via_eol_server(eol_api_url, token)
     eol_api_url += "/" unless eol_api_url.end_with?("/")
     raise("Token not supplied") unless token
-    query_fn = Proc.new {|cql| query_via_http(cql, eol_api_url, token)}
+    query_fn = Proc.new {|cql| query_via_eol_server(cql, eol_api_url, token)}
     Graph.new(query_fn)
   end
 
@@ -29,10 +31,6 @@ class Graph
   def initialize(query_fn)
     @query_fn = query_fn
   end
-
-  # We also need stage_scp, stage_web if we're doing paged queries!
-  # But maybe we're leaving that up to the Paginator class?
-  # Returns nil on error, after printing message - is this right?
 
   # Possible exceptions: (may be different for direct-to-neo4j)
   #   Connection level:
@@ -51,7 +49,7 @@ class Graph
   #   Neo4j level:
   #     cypher syntax - do not retry
 
-  def run_query(cql, tries = 3, retry_interval = 1)
+  def run_query(cql, tries = 3, retry_interval = 2, doze = 1)
     json = nil
     while tries > 0 do
       retr = false
@@ -59,32 +57,29 @@ class Graph
       tries -= 1
       begin
         json = @query_fn.call(cql)
+        raise "Null response ???" if json == nil
+        raise Neo4jError.new(json) if Graph.errorful(json)
+        # Throttle requests to decrease server load
+        sleep(doze) if doze > 0
+        json
+      rescue Faraday::ConnectionFailed => e
+        retr = true; loser = e
       rescue Errno::ECONNREFUSED => e
         retr = true; loser = e
-      rescue Net::HTTPGatewayTimeout => e
+      rescue Retriable => e
         retr = true; loser = e
-      rescue Net::HTTPBadGateway => e
-        retr = true; loser = e
+      # Net::HTTPGatewayTimeout and so on ...
       rescue => e
         loser = e
-        STDERR.puts "** Exception class = #{e.class}"
       end
       if retr and tries > 0
         STDERR.puts "** #{e}"
         STDERR.puts "** Will retry after #{retry_interval} seconds, up to #{tries} times"
         sleep(retry_interval)
-        loser = nil
-      end
-      if loser
+      elsif loser
         raise loser 
-      else
-        if json && json["data"].length > 100
-          # Throttle load on server
-          sleep(1)
-        end
       end
     end
-    json
   end
 
   # Do queries via neo4j's Cypher Transaction API
@@ -96,88 +91,74 @@ class Graph
 
   def self.query_via_transaction_api(cql, server)
     uri = URI("#{server}/db/neo4j/tx/commit")
-    use_ssl = (uri.scheme == "https")
-    # https://stackoverflow.com/questions/15157553/set-read-timeout-for-the-service-call-in-ruby-nethttp-start
-    # Cannot set headers using HTTP.start.
-    # Can set them with using HTTP.new?
-    session = Net::HTTP.new(uri.host, uri.port, :use_ssl => use_ssl,
-                            :read_timeout => read_timeout)
-    session.start do |http|
-      request = Net::HTTP::Post.new(uri)
+    path = uri.path
+    userinfo = uri.userinfo
+    blob = nil
 
+    Faraday::Connection.new do |conn|
+      conn.use FaradayMiddleware::FollowRedirects
+      conn.adapter(:net_http) # NB: Last middleware must be the adapter
+      # Make a request
+      headers = {}
+      headers['Authorization'] = "Basic #{Base64.encode64(userinfo).strip}"
+      headers['Accept'] = "application/json;charset=UTF-8"
+      headers['Content-type'] = "application/json"
       body = JSON.generate({'statements': [{"statement": cql}]})
-      request = http.post(uri, body)
-      # The *request* might be of type Net::HTTPClientError (or any other HTTP error)
-      raise "HTTP client error" \
-        if request.kind_of? Net::HTTPClientError
-
-      request['Authorization'] = "Basic #{Base64.encode64(uri.userinfo).strip}"
-      request['Accept'] = "application/json;charset=UTF-8"
-      request['Content-type'] = "application/json"
-      request.body = body
-      response = http.request(request)
-      puts response.class
-      response
+      response = conn.post(uri, body = body, headers = headers)
+      code = response.status
+      message = response.reason_phrase
+      maybe_raise_http_error(code, message)
+      # Success
+      blob = JSON.parse(response.body)    # can return nil
+      if errorful("errors")
+        blob
+      else
+        # Have
+        #  {"results":[{"columns":["p.page_id"],"data":[{"row":[1],"meta":[null]}]}],"errors":[]}
+        # Want
+        #  {"columns": ["p.page_id"], "data": [["1"]]}
+        results = blob["results"][0]
+        raise "No results" unless results
+        raise "No data" unless results["data"]
+        rows = results["data"].collect{|x| x["row"]}
+        blob = {"columns" => results["columns"], "data" => rows}
+      end
     end
-
-    # Raise exception if not a 200
-    response.value()
-
-    begin
-        blob = JSON.parse(response.body)    # can return nil
-        if blob["errors"].size > 0
-          raise Neo4jError.new(blob)
-        else
-          # Have
-          #  {"results":[{"columns":["p.page_id"],"data":[{"row":[1],"meta":[null]}]}],"errors":[]}
-          # Want
-          #  {"columns": ["p.page_id"], "data": [["1"]]}
-          foo = blob["results"][0]
-          raise "no results" unless foo
-          raise "no data" unless foo["data"]
-          rows = foo["data"].collect{|x| x["row"]}
-          {"columns" => foo["columns"], "data" => rows}
-        end
-    end
+    blob
   end
-
 
   # A particular query method for doing queries using the EOL v3 API
   # over HTTP.  CODE FORKED FROM traits_dumper.rb ...
 
-  # This uses POST for all commands; probably should use GET
+  # TBD: This uses POST for all commands; probably should use GET
   # (cacheable) for pure queries.
-  def self.query_via_http(cql, server, token)
+
+  def self.query_via_eol_server(cql, server, token)
     # Need to be a web client.
     # "The Ruby Toolbox lists no less than 25 HTTP clients."
     escaped = CGI::escape(cql)
-    # TBD: Ought to do GET if query is effectless.
-    uri = URI("#{server}service/cypher?query=#{escaped}")
-    use_ssl = (uri.scheme == "https")
-    Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl) do |http|
-      request = Net::HTTP::Post.new(uri)
-      request['Authorization'] = "JWT #{token}"
-      request['Accept'] = "application/json"
-      response = http.request(request)
-      # Raise exception if not 200
-      response.value()
-      if response.is_a?(Net::HTTPSuccess)
-        # EOL REST API v3 format
-        # {"columns": ["columnname"], "data": [["value"]]}
-        JSON.parse(response.body)
+    # was: uri = URI("#{server}service/cypher?query=#{escaped}")
+    path = "service/cypher?query=#{escaped}"
+
+    Faraday::Connection.new do |conn|
+      conn.use FaradayMiddleware::FollowRedirects
+      conn.adapter(:net_http) # NB: Last middleware must be the adapter
+      headers = {}
+      headers['Authorization'] = "JWT #{token}"
+      headers['Accept'] = "application/json"
+      # no body
+      response = conn.post(path,
+                           headers = {:headers=>headers})
+      code = response.status
+      message = response.reason_phrase
+      # do we need to handle redirects??
+      maybe_raise_http_error(code, message)
+      # Success
+      blob = JSON.parse(response.body)    # can return nil
+      if errorful(blob)
+        blob
       else
-        STDERR.puts("** HTTP response: #{response.code} #{response.message}")
-        if response.code >= '300' && response.code < '400'
-          STDERR.puts("** Location: #{response['Location']}")
-        end
-        # Ideally we'd print only those lines that have useful 
-        # information (error message and backtrace).
-        # /home/jar/g/eol_website/lib/painter.rb:297:in `block in merge': 
-        #     undefined method `[]' for nil:NilClass (NoMethodError)
-        #   from /home/jar/g/eol_website/lib/painter.rb:280:in `each'
-        STDERR.puts(cql)
-        STDERR.puts(response.body)
-        nil
+        blob
       end
     end
   end
@@ -242,18 +223,52 @@ class Graph
     end
   end
 
+  def self.errorful(blob)
+    blob.include?("errors") && blob["errors"].size > 0
+  end
+
   class Neo4jError < RuntimeError
     def initialize(blob)
       @blob = blob
     end
     def message
       begin
+        raise "Erroneous error #{@blob}" unless errorful("errors")
         errors = @blob["errors"]
         reports = errors.map{|x| "#{x["code"]} #{x["message"]}"}
         "Neo4j error(s) - #{reports.join(" | ")}"
       rescue
-        STDERR.puts "** Unprintable exception"
+        "** Unprintable Neo4jError exception"
       end
+    end
+  end
+
+  def self.maybe_raise_http_error(code, message)
+    if code == nil
+      raise "HTTP request not made ???"
+    elsif code == 200
+      nil
+    elsif code == 408 || code == 502 || code == 503 || code == 504
+      # HTTP 408 Request Timeout
+      # HTTP 502 Bad Gateway
+      # HTTP 503 Service Unavailable
+      # HTTP 504 Gateway Timeout
+      raise Retriable.new(code, message)
+    elsif code >= '300' && code < '400'
+      raise "HTTP redirect: #{code} #{message}\n  Location: #{response['Location']}"
+    else
+      # Also include selected info from response.body ?
+      raise "HTTP response: #{code} #{message}"
+    end
+  end
+
+  class Retriable < RuntimeError
+    def initialize(code, message)
+      @code = code
+      @message = message
+    end
+    def message
+      "HTTP error - #{@code} #{@message}"
     end
   end
 
