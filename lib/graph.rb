@@ -80,6 +80,7 @@ class Graph
         raise loser 
       end
     end
+    json
   end
 
   # Do queries via neo4j's Cypher Transaction API
@@ -110,7 +111,7 @@ class Graph
       maybe_raise_http_error(code, message)
       # Success
       blob = JSON.parse(response.body)    # can return nil
-      if errorful("errors")
+      if errorful(blob)
         blob
       else
         # Have
@@ -230,7 +231,7 @@ class Graph
     end
     def message
       begin
-        raise "Erroneous error #{@blob}" unless errorful("errors")
+        raise "Erroneous error #{@blob}" unless errorful(blob)
         errors = @blob["errors"]
         reports = errors.map{|x| "#{x["code"]} #{x["message"]}"}
         "Neo4j error(s) - #{reports.join(" | ")}"
