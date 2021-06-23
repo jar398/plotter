@@ -59,8 +59,10 @@ class Graph
       begin
         json = @query_fn.call(cql)
         raise "Null response ???" if json == nil
-        raise Neo4jError.new(json) if Graph.errorful(json)
-        json
+        if Graph.errorful(json)
+          loser = Neo4jError.new(json) 
+          retr = loser.retryable
+        end
       rescue Faraday::ConnectionFailed => e
         retr = true; loser = e
       rescue Errno::ECONNREFUSED => e
@@ -76,7 +78,7 @@ class Graph
         loser = e
       end
       if retr and tries > 0
-        STDERR.puts "** #{e}"
+        STDERR.puts "** #{loser}"
         STDERR.puts "** Will retry after #{retry_interval} seconds, up to #{tries} times"
         sleep(retry_interval)
       elsif loser
@@ -235,11 +237,19 @@ class Graph
 
   class Neo4jError < RuntimeError
     def initialize(blob)
-      @blob = blob
+      if Graph.errorful(blob)
+        @blob = blob
+      else
+        raise "Erroneous error #{blob}"
+      end
+    end
+    def retryable
+      mess = @blob["errors"][0]["message"]
+      (mess.include?("dbms.transaction.timeout") ||
+       mess.include?("dbms.lock.acquisition.timeout"))
     end
     def message
       begin
-        raise "Erroneous error #{@blob}" unless errorful(blob)
         errors = @blob["errors"]
         reports = errors.map{|x| "#{x["code"]} #{x["message"]}"}
         "Neo4j error(s) - #{reports.join(" | ")}"
