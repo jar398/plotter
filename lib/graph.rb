@@ -140,6 +140,7 @@ class Graph
     # was: uri = URI("#{server}service/cypher?query=#{escaped}")
     path = "service/cypher?query=#{escaped}"
 
+    blob = nil
     Faraday::Connection.new do |conn|
       conn.use FaradayMiddleware::FollowRedirects
       conn.adapter(:net_http) # NB: Last middleware must be the adapter
@@ -155,12 +156,8 @@ class Graph
       maybe_raise_http_error(code, message)
       # Success
       blob = JSON.parse(response.body)    # can return nil
-      if errorful(blob)
-        blob
-      else
-        blob
-      end
     end
+    blob
   end
 
   # Copied from https://github.org/eol/eol_website/lib/trait_bank.rb .
