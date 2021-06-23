@@ -11,6 +11,10 @@ Scripts are invoked using `rake`.
 Clone the repository.  Copy config/config.sample.yml to config/config.yml
 and modify as follows.
 
+After configuration you can test using `rake`, e.g.
+
+    rake resource:info CONF=prod ID=40
+
 ## Configuration
 
 Copy `config/config.sample.yml` to `config/config.yml` and edit the
@@ -18,40 +22,45 @@ configuration directives as appropriate for your local `plotter`
 installation.
 
  1. Set `locations: workspace: path:` to a local directory where the plotter scripts 
-    can put results and intermediate files
+    can put results and intermediate files.  Personally I set this to
+    directory `.plotter_workspace` in my home directory.
  1. Set `prod_pub: token_file:` to be the local file that contains (or will contain)
-    a v3 API token; similarly for beta.  (see note, below)
+    a token for an EOL v3 API endpoint; similarly for `beta_pub`.  (see note, below)
      1. Obtain a read token for the graphdb, and if you'll be writing as well, also obtain 
         a write token.  The write token must be associated with an admin account; a read 
         token can be associated with any account but using a non-admin account is a 
-        bit more secure.  If using an admin account the read and write tokens will be the same.
+        bit more secure.  If using an admin account the read and write tokens 
+        will be the same.
      1. To obtain a token, go to
-        `https://beta.eol.org/services/authenticate` or
-        `https://eol.org/services/authenticate`
+        `https://eol.org/services/authenticate` or
+        `https://beta.eol.org/services/authenticate`
         as the case may be
         (see [API documentation](https://github.com/EOL/eol_website/blob/master/doc/api.md)).
      1. Put the token into a file.
      1. Set `prod_pub: token_file:` (or `beta_pub: token_file:` or `prod_pub: update_token_file:` 
-        etc.) to the path to that file.
+        etc.) to be the path to that file.
  1. Configure the staging server `locations: staging:`.  The directory on the 
         staging server has to be writable via the `rsync`
         command, which is used by plotter scripts,
         and it has to be readable by the Neo4j server(s) via HTTP.
         The examples in `config.sample.yml` should provide guidance on how to set these variables.
-     1. `rsync_specifier` specifies the target directory on the staging server, prefixed by the
-        server name as understood by `ssh` (either a DNS name or a name configured in
-        `~/.ssh/config`)
      1. `rsync_command` specifies the `rsync`-like command to use to transfer local files
         to the staging server (this string does not include the source or target).  
         If not specified, defaults to `rsync -av`.
-     1. `url` gives the prefix for the URLs that will occur in neo4j `LOAD CSV` commands.
-     1. If the local machine has a suitable directory, exposed via an HTTP server to neo4j,
-        the staging area can be configured to be that directory.  In this case the 
-        `rsync_specifier` does not contain a colon and `url` points to the local machine.
-     1. It may be possible to use the neo4j `import` directory with `file:///` URLs, but 
-        I haven't tried it.
+     1. `rsync_specifier` should be either a local path or `host:path` as would 
+        be understood by an `ssh` command.  `host` is either a DNS name or 
+        a name configured in `~/.ssh/config`.  If a local path, then neo4j should 
+        be running locally and the path should be the 
+        path to neo4j's `import` directory.  If remote, the directory should be 
+        one that is exposed by that host's HTTP server.
+     1. (It may be possible to use the neo4j `import` directory with `file:///` URLs, but 
+        I haven't tried it.)
+     1. `url` gives the prefix designating the `rsync_specifier`
+        directory when accessed using 
+        HTTP.  It will be used in the URLs that will occur in neo4j `LOAD CSV` 
+        commands. 
      1. In order for `rsync` to work,
-        appropriate `ssh` credentials hoav to be in place.  They can be specified
+        appropriate `ssh` credentials have to be in place.  They can be specified
         in `~/.ssh/config` or with an -I argument in the `rsync_command`.
 
 

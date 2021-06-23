@@ -42,6 +42,7 @@ require 'json'
 require 'cgi'
 
 require 'graph'
+require 'paginator'
 
 # An instance of the TraitsDumper class is sort of like a 'session'
 # for producing a ZIP file.  Its state of all the parameters needed to
@@ -66,12 +67,14 @@ class TraitsDumper
     @graph = graph
     @chunksize = chunksize
     @tempdir = tempdir
+    @paginator = Paginator.new(graph)
   end
 
   # dest is name of zip file to be written, or nil for default
   def dump_traits(dest, clade_page_id = nil)
     clade = (clade_page_id ? Integer(clade_page_id) : nil) # kludge
     @tempdir = @tempdir || File.join("/tmp", default_basename(clade))
+    puts `date`
     paths = [emit_terms,
              emit_pages(clade),
              emit_inferred(clade),
@@ -83,6 +86,7 @@ class TraitsDumper
         File.directory?(dest)
       write_zip(paths, dest) 
     end
+    puts `date`
   end
 
   # Mostly-unique tag based on current month and clade id
@@ -340,101 +344,8 @@ class TraitsDumper
   # created even if empty), or nil if there was any kind of failure.
 
   def supervise_query(query, columns, filename)
-    path = File.join(@tempdir, filename)
-    if File.exist?(path)
-      #STDERR.puts "reusing previously created #{path}"
-      path
-    else
-      # Create a directory path.parts to hold the parts
-      parts_dir = path + ".parts"
-      begin
-        parts, count = get_query_chunks(query, columns, parts_dir)
-        # This always writes a .csv file to path, even if it's empty.
-        assemble_chunks(parts, path)
-        if Dir.exist?(parts_dir) && Dir.entries(parts_dir).length <= 2 # . and ..
-          FileUtils.rmdir parts_dir
-        end
-        if count > 0
-          STDERR.puts("#{File.basename(path)}: #{parts.length} parts, #{count} records")
-        end
-        path
-      rescue => e
-        STDERR.puts "** Failed to generate #{path}"
-        STDERR.puts "** Exception: #{e}"
-        nil
-      end
-    end
-  end
-
-  # Ensure that all the parts files for a table exist, using Neo4j to
-  # obtain them as needed.
-  # Returns a list of paths (file names for the parts) and a count of
-  # the total number of rows (not always accurate).
-  # A file will be created for every successful query, but the pathname
-  # is only included in the returned list if it contains at least one row.
-
-  def get_query_chunks(query, columns, parts_dir)
-    limit = (@chunksize ? "#{@chunksize}" : "10000000")
-    parts = []
-    skip = 0
-
-    # Keep doing queries until no more results are returned, or until
-    # something goes wrong
-    while true
-      # Fetch it in parts
-      basename = (@chunksize ? "#{skip}_#{@chunksize}" : "#{skip}")
-      part_path = File.join(parts_dir, "#{basename}.csv")
-      if File.exist?(part_path)
-        if File.size(part_path) > 0
-          parts.push(part_path)
-        end
-        # Ideally, we should increase skip by the actual number of
-        # records in the file.
-        skip += @chunksize if @chunksize
-      else
-        result = run_query(query + " SKIP #{skip} LIMIT #{limit}")
-        got = result["data"].length
-        if result
-          # The skip == 0 test is a kludge that fixes a bug where the
-          # header row was being omitted in some cases
-          if got > 0 || skip == 0
-            emit_csv(result, columns, part_path)
-            parts.push(part_path)
-          else
-            FileUtils.mkdir_p File.dirname(part_path)
-            FileUtils.touch(part_path)
-          end
-        end
-        skip += got
-        break if @chunksize && got < @chunksize
-      end
-      break unless @chunksize
-    end
-    [parts, skip]
-  end
-
-  # Combine the parts files (for a single table) into a single master
-  # .csv file which is stored at path.
-  # Always returns path, where a file (perhaps empty) will be found.
-
-  def assemble_chunks(parts, path)
-    # Concatenate all the parts together
-    FileUtils.mkdir_p File.dirname(path)
-    if parts.size == 0
-      FileUtils.touch(path)
-    elsif parts.size == 1
-      FileUtils.mv parts[0], path
-    else
-      temp = path + ".new"
-      tails = parts.drop(1).map { |path| "tail -n +2 #{path}" }
-      more = tails.join(';')
-      command = "(cat #{parts[0]}; #{more}) >#{temp}"
-      system command
-      FileUtils.mv temp, path
-      # We could delete the directory and all the files in it, but
-      # instead let's leave it around for debugging (or something)
-    end
-    path
+    csv_path = File.join(@tempdir, filename)
+    @paginator.supervise_query(query, columns, csv_path)
   end
 
   # Run a single CQL query using the method provided (could be
@@ -442,29 +353,6 @@ class TraitsDumper
 
   def run_query(cql)
     @graph.run_query(cql)
-  end
-
-  # Utility - convert native cypher output form to CSV
-  def emit_csv(start, keys, path)
-    # Sanity check the result
-    if start["columns"] == nil or start["data"] == nil
-      STDERR.puts "** failed to write #{path}; result = #{start}"
-      return nil
-    end
-    temp = path + ".new"
-    FileUtils.mkdir_p File.dirname(temp)
-    csv = CSV.open(temp, "wb")
-    csv << keys
-    count = start["data"].length
-    if count > 0
-      STDERR.puts "writing #{count} csv records to #{temp}"
-      start["data"].each do |row|
-        csv << row
-      end
-    end
-    csv.close
-    FileUtils.mv temp, path
-    path
   end
 
 end

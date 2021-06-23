@@ -43,9 +43,9 @@ class Paginator
   # supervise_query: generate a set of 'chunks', then put them
   # together into a single .csv file.
 
-  # A chunk is the result set of a single cypher query.  The queries
-  # are in a single supervise_query call are all the same, except for
-  # the value of the SKIP parameter.
+  # A chunk (or 'part') is the result set of a single cypher query.
+  # The queries are in a single supervise_query call are all the same,
+  # except for the value of the SKIP parameter.
 
   # The reason for this is that the result sets for some queries are
   # too big to capture with a single query, due to timeouts or other
@@ -61,7 +61,7 @@ class Paginator
                       keep_chunks = nil)
     keep_chunks = not(assemble) if keep_chunks == nil
     if File.exist?(csv_path)
-      STDERR.puts "Using cached file #{csv_path}"
+      STDERR.puts "Using previously generated file #{csv_path}"
       csv_path
     else
       # Create a directory csv_path.chunks to hold the chunks
@@ -76,6 +76,12 @@ class Paginator
         end
         # This always writes a .csv file to csv_path, even if it's empty.
         assemble_chunks(chunks, csv_path, assemble, keep_chunks)
+
+        # Flush the chunks directory if it's empty
+        if Dir.exist?(chunks_dir) && Dir.entries(chunks_dir).length <= 2 # . and ..
+          FileUtils.rmdir chunks_dir
+        end
+
         csv_path
       rescue => e
         STDERR.puts "** Failed to generate #{csv_path}"
@@ -94,7 +100,7 @@ class Paginator
   # is only included in the returned list if it contains at least one row.
 
   def get_query_chunks(query, headings, chunksize, csv_path, skipping)
-    limit = (chunksize ? "#{chunksize}" : "1000000")
+    limit = (chunksize ? "#{chunksize}" : "10000000")
     chunks = []
     skip = 0
 
@@ -118,11 +124,13 @@ class Paginator
           whole_query = whole_query + " SKIP #{skip}"
         end
         whole_query = whole_query + " LIMIT #{limit}"
+        # This might raise an exception... where to put recovery logic?
         result = @graph.run_query(whole_query)
+        # result could be nil even if no exception (no results)?
         if result
           got = result["data"].length
           # The skip == 0 test is a kludge that fixes a bug where the
-          # header row was being omitted in some cases
+          # header row was being omitted in some cases ???
           STDERR.puts(result) if got == 0
           if got > 0 || skip == 0
             emit_csv(result, headings, chunk_path)
@@ -136,9 +144,11 @@ class Paginator
         else
           STDERR.puts("No results for #{chunk_path}")
           STDERR.puts(whole_query)
+          # raise ... ?
         end
       end
-      break unless chunksize
+      # wait, how does this work?
+      break unless chunksize && got < chunksize
     end
     [chunks, skip]
   end
