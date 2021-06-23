@@ -128,6 +128,9 @@ class Paginator
         result = @graph.run_query(whole_query)
         # result could be nil even if no exception (no results)?
         if result
+          # ***** Throttle requests to decrease server load *****
+          sleep(1)
+
           got = result["data"].length
           # The skip == 0 test is a kludge that fixes a bug where the
           # header row was being omitted in some cases ???

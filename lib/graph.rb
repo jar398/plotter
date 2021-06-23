@@ -49,7 +49,7 @@ class Graph
   #   Neo4j level:
   #     cypher syntax - do not retry
 
-  def run_query(cql, tries = 3, retry_interval = 2, doze = 1)
+  def run_query(cql, tries = 3, retry_interval = 2)
     json = nil
     while tries > 0 do
       retr = false
@@ -59,14 +59,16 @@ class Graph
         json = @query_fn.call(cql)
         raise "Null response ???" if json == nil
         raise Neo4jError.new(json) if Graph.errorful(json)
-        # Throttle requests to decrease server load
-        sleep(doze) if doze > 0
         json
       rescue Faraday::ConnectionFailed => e
         retr = true; loser = e
       rescue Errno::ECONNREFUSED => e
         retr = true; loser = e
-      rescue Retriable => e
+      rescue Faraday::TimeoutError => e
+        retr = true; loser = e
+      rescue Net::ReadTimeout
+        retr = true; loser = e
+      rescue Retryable => e
         retr = true; loser = e
       # Net::HTTPGatewayTimeout and so on ...
       rescue => e
@@ -105,7 +107,10 @@ class Graph
       headers['Accept'] = "application/json;charset=UTF-8"
       headers['Content-type'] = "application/json"
       body = JSON.generate({'statements': [{"statement": cql}]})
-      response = conn.post(uri, body = body, headers = headers)
+      response = conn.post(uri, body = body, headers = headers) do |req|
+        req.options.timeout = 1
+        req.options.open_timeout = 1
+      end
       code = response.status
       message = response.reason_phrase
       maybe_raise_http_error(code, message)
@@ -138,8 +143,7 @@ class Graph
     # Need to be a web client.
     # "The Ruby Toolbox lists no less than 25 HTTP clients."
     escaped = CGI::escape(cql)
-    # was: uri = URI("#{server}service/cypher?query=#{escaped}")
-    path = "service/cypher?query=#{escaped}"
+    uri = URI("#{server}service/cypher")
 
     blob = nil
     Faraday::Connection.new do |conn|
@@ -149,8 +153,11 @@ class Graph
       headers['Authorization'] = "JWT #{token}"
       headers['Accept'] = "application/json"
       # no body
-      response = conn.post(path,
-                           headers = {:headers=>headers})
+      # Do post or get depending on command???
+      response = conn.post(uri, body = "query=#{escaped}", headers = headers) do |req|
+        req.options.timeout = 1
+        req.options.open_timeout = 1
+      end
       code = response.status
       message = response.reason_phrase
       # do we need to handle redirects??
@@ -251,8 +258,8 @@ class Graph
       # HTTP 502 Bad Gateway
       # HTTP 503 Service Unavailable
       # HTTP 504 Gateway Timeout
-      raise Retriable.new(code, message)
-    elsif code >= '300' && code < '400'
+      raise Retryable.new(code, message)
+    elsif code >= 300 && code < 400
       raise "HTTP redirect: #{code} #{message}\n  Location: #{response['Location']}"
     else
       # Also include selected info from response.body ?
@@ -260,7 +267,7 @@ class Graph
     end
   end
 
-  class Retriable < RuntimeError
+  class Retryable < RuntimeError
     def initialize(code, message)
       @code = code
       @message = message
