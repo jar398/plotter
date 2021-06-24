@@ -54,7 +54,7 @@ class Hierarchy
   end
 
   def stage
-    system.stage(@resource.relative_path("pages"))
+    System.system.stage(@resource.relative_path("pages"))
   end
 
   # This is like load, but never creates new Page nodes, only sets

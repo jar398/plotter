@@ -170,7 +170,8 @@ class Paginator
     chunks_dir = csv_path + ".chunks"
     if chunks.size == 0
       FileUtils.touch(csv_path)
-      FileUtils.rmdir chunks_dir # should be empty
+      # temp directory should be empty
+      FileUtils.rmdir chunks_dir if Dir.exist?(chunks_dir)
     elsif chunks.size == 1
       FileUtils.mv chunks[0], csv_path
       FileUtils.rmdir chunks_dir # should be empty

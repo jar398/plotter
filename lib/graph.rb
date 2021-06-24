@@ -59,10 +59,7 @@ class Graph
       begin
         json = @query_fn.call(cql)
         raise "Null response ???" if json == nil
-        if Graph.errorful(json)
-          loser = Neo4jError.new(json) 
-          retr = loser.retryable
-        end
+        raise Neo4jError.new(json) if Graph.errorful(json)
       rescue Faraday::ConnectionFailed => e
         retr = true; loser = e
       rescue Errno::ECONNREFUSED => e
@@ -77,6 +74,7 @@ class Graph
       rescue => e
         loser = e
       end
+      retr = true if Graph.is_timeout(loser)
       if retr and tries > 0
         STDERR.puts "** #{loser}"
         STDERR.puts "** Will retry after #{retry_interval} seconds, up to #{tries} times"
@@ -235,6 +233,24 @@ class Graph
     blob.include?("errors") && blob["errors"].size > 0
   end
 
+  # For a neo4j timeout, the error "code" is
+  # Neo.DatabaseError.Statement.ExecutionFailed, and the "message"
+  # looks like this:
+  #   "The transaction has been terminated. Retry your operation in a
+  #   new transaction, and you should see a successful result. The
+  #   transaction has not completed within the specified timeout
+  #   (dbms.transaction.timeout). You may want to retry with a longer
+  #   timeout."
+  # The only way to distinguish a timeout (which is retryable) from a
+  # non-timeout (which isn't) is by string search, as far as I can tell.
+
+  def self.is_timeout(exc)
+    return false if exc == nil
+    mess = exc.message
+    (mess.include?("dbms.transaction.timeout") ||
+     mess.include?("dbms.lock.acquisition.timeout"))
+  end
+
   class Neo4jError < RuntimeError
     def initialize(blob)
       if Graph.errorful(blob)
@@ -242,11 +258,6 @@ class Graph
       else
         raise "Erroneous error #{blob}"
       end
-    end
-    def retryable
-      mess = @blob["errors"][0]["message"]
-      (mess.include?("dbms.transaction.timeout") ||
-       mess.include?("dbms.lock.acquisition.timeout"))
     end
     def message
       begin
@@ -268,7 +279,7 @@ class Graph
       # HTTP 408 Request Timeout
       # HTTP 502 Bad Gateway
       # HTTP 503 Service Unavailable
-      # HTTP 504 Gateway Timeout
+      # HTTP 504 Gateway Timeout    - e.g. neo4j timeout via EOL proxy
       raise Retryable.new(code, message)
     elsif code >= 300 && code < 400
       raise "HTTP redirect: #{code} #{message}\n  Location: #{response['Location']}"

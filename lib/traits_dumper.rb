@@ -168,10 +168,10 @@ class TraitsDumper
 
   def emit_traits(clade)
     filename = "traits.csv"
-    path = File.join(@tempdir, filename)
-    if File.exist?(path)
-      STDERR.puts "reusing previously created #{path}"
-      return path
+    csv_path = File.join(@tempdir, filename)
+    if File.exist?(csv_path)
+      STDERR.puts "reusing previously created #{csv_path}"
+      return csv_path
     end
     # Matching the keys used in the tarball if possible (even when inconsistent)
     # E.g. should "predicate" be "predicate_uri" ?
@@ -212,12 +212,13 @@ class TraitsDumper
                t.method, t.remarks, t.sample_size, t.name_en,
                t.citation"
       # TEMPDIR/{traits,metadata}.csv.predicates/
-      ppath = supervise_query(traits_query, traits_keys, "traits.csv.predicates/#{i}.csv")
+      ppath = supervise_query(traits_query, traits_keys,
+                              "traits.csv.predicates/#{i}.csv")
       # ppath is nil on failure (e.g. timeout)
       ppath ? files.push(ppath) : fails.push(ppath)
     end
     if fails.empty?
-      assemble_chunks(files, path)
+      @paginator.assemble_chunks(files, csv_path)
     else
       STDERR.puts "** Deferred due to exception(s): traits.csv"
       nil
@@ -258,10 +259,10 @@ class TraitsDumper
 
   def emit_metadatas(clade)
     filename = "metadata.csv"
-    path = File.join(@tempdir, filename)
-    if File.exist?(path)
-      STDERR.puts "reusing previously created #{path}"
-      return path
+    csv_path = File.join(@tempdir, filename)
+    if File.exist?(csv_path)
+      STDERR.puts "reusing previously created #{csv_path}"
+      return csv_path
     end
     metadata_keys = ["eol_pk", "trait_eol_pk", "predicate", "value_uri",
                      "measurement", "units_uri", "literal"]
@@ -283,12 +284,13 @@ class TraitsDumper
         OPTIONAL MATCH (m)-[:object_term]->(obj:Term)
         OPTIONAL MATCH (m)-[:units_term]->(units:Term)
         RETURN m.eol_pk, t.eol_pk, predicate.uri, obj.uri, m.measurement, units.uri, m.literal"
-      ppath = supervise_query(metadata_query, metadata_keys, "metadata.csv.predicates/#{i}.csv")
+      ppath = supervise_query(metadata_query, metadata_keys,
+                              "metadata.csv.predicates/#{i}.csv")
       # ppath is nil on failure (e.g. timeout)
       ppath ? files.push(ppath) : fails.push(ppath)
     end
     if fails.empty?
-      assemble_chunks(files, path)
+      @paginator.assemble_chunks(files, csv_path)
     else
       STDERR.puts "** Deferred due to exception(s): metadata.csv"
       nil
@@ -308,10 +310,10 @@ class TraitsDumper
 
   def emit_inferred(clade)
     filename = "inferred.csv"
-    path = File.join(@tempdir, filename)
-    if File.exist?(path)
-      STDERR.puts "reusing previously created #{path}"
-      return path
+    csv_path = File.join(@tempdir, filename)
+    if File.exist?(csv_path)
+      STDERR.puts "reusing previously created #{csv_path}"
+      return csv_path
     end
     inferred_keys = ["page_id", "inferred_trait"]
     inferred_query = 
@@ -345,7 +347,7 @@ class TraitsDumper
 
   def supervise_query(query, columns, filename)
     csv_path = File.join(@tempdir, filename)
-    @paginator.supervise_query(query, columns, csv_path)
+    @paginator.supervise_query(query, columns, @chunksize, csv_path)
   end
 
   # Run a single CQL query using the method provided (could be
