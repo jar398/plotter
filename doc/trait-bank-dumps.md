@@ -27,7 +27,7 @@ via environment the `rake` `VAR=value` syntax.
         be dumped.  Default is to dump the entire traitbank.
  - `CHUNK`: number of records in each 'chunk' to be fetched.
             Default is 10000.
-            Larger values can be more efficient over all, but
+            Larger values can be more efficient overall, but
             can result in neo4j timeouts.
  - `TEMP`: where to put intermediate files (defaults to a directory under `/tmp`)
 

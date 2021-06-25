@@ -2,8 +2,6 @@
 
 A collection of utilities for reading and modifying EOL graph databases.
 
-Scripts are invoked using `rake`.
-
 ## Installation
 
 Clone the repository.  Copy config/config2.sample.yml to config/config2.yml
@@ -62,14 +60,22 @@ appropriate for your local `plotter` installation.
         in `~/.ssh/config` or with an -I argument in the `rsync_command`.
 
 
-
 ## Choosing a configuration
 
-Most `rake` commands require a `CONF=` parameter to specify which
+Most of the `rake` commands require a `CONF=` parameter to specify which
 graphdb configuration is to be used.  The configurations are listed in
 `config2.yml` but are typically `test` (for a private testing
 instance), `beta` (EOL beta instance), or `prod` (EOL production
 instance).
+
+## 'Smoke test'
+
+As a simple first test of installation, try
+
+    rake resource:info CONF=beta ID=40
+
+which will generate a bunch of information about resource 40 on the
+beta publishing instance.
 
 ## All-traits dump
 
@@ -146,7 +152,7 @@ The 'concordance' feature is not currently working.
 ## Upgrading from plotter 0.1.0 to plotter 0.2.0
 
 * Make sure you have a version of the `bundle` command with version >= 2.2.10.
-  I did `gem install bundler` to accomplish this.
+  I did `gem install bundler` followed by `bundle` to accomplish this.
 * Make a new configuration file with `cp config/config2.sample.yml config/config2.yml`.
 * Add details to `config/config2.yml` based on what you did for your previous config file
   `config/config.yml`.  The structure and syntax are slightly different but 
@@ -154,3 +160,4 @@ The 'concordance' feature is not currently working.
 * Traits dumps now go in workspace subdirectory `prod/trait_dumps` (for production).
   Modify scripts for this new location as necessary.
 * Traits dump temp files will now go in workspace subdirectory `prod/trait_dumps/tmp/`
+
