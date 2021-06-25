@@ -142,3 +142,15 @@ Lots of things to test.  For end to end tests we need to look at:
 * instance - flush caches (this has fallen into disrepair)
 
 The 'concordance' feature is not currently working.
+
+## Upgrading from plotter 0.1.0 to plotter 0.2.0
+
+* Make sure you have a version of the `bundle` command with version >= 2.2.10.
+  I did `gem install bundler` to accomplish this.
+* Make a new configuration file with `cp config/config2.sample.yml config/config2.yml`.
+* Add details to `config/config2.yml` based on what you did for your previous config file
+  `config/config.yml`.  The structure and syntax are slightly different but 
+  overall the details are mostly the same.
+* Traits dumps now go in workspace subdirectory `prod/trait_dumps` (for production).
+  Modify scripts for this new location as necessary.
+* Traits dump temp files will now go in workspace subdirectory `prod/trait_dumps/tmp/`
