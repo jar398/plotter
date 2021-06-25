@@ -25,7 +25,7 @@
 # . TOKEN - API token to be used with SERVER
 # . ID - the publishing id of the resource to be painted
 
-# For example: (be sure to set up your config/config.yml first)
+# For example: (be sure to set up your config/config2.yml first)
 #
 # ID=640 COMMAND=qc ruby -r ./lib/painter.rb -e Painter.main
 

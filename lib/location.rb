@@ -138,7 +138,7 @@ class Location
   end
 
   # Combine resource records from publishing server ('rails') with
-  # those found in config.yml
+  # those found in config2.yml
 
   def get_own_resource_records
     return @records_by_id if @records_by_id

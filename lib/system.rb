@@ -23,7 +23,7 @@ class System
 
     def system(config = nil)
       return @system if @system
-      config = YAML.load(File.read("config/config.yml")) unless config
+      config = YAML.load(File.read("config/config2.yml")) unless config
       raise("No configuration provided") unless config
       @system = System.new(config)
       @system                   # singleton I suppose

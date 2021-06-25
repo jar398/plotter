@@ -1,14 +1,12 @@
 # 'Plotter' - make a graph
 
-2021-02-17  work in progress, this doc might be obsolete
-
-EOL related utilities.
+A collection of utilities for reading and modifying EOL graph databases.
 
 Scripts are invoked using `rake`.
 
 ## Installation
 
-Clone the repository.  Copy config/config.sample.yml to config/config.yml
+Clone the repository.  Copy config/config2.sample.yml to config/config2.yml
 and modify as follows.
 
 After configuration you can test using `rake`, e.g.
@@ -17,9 +15,8 @@ After configuration you can test using `rake`, e.g.
 
 ## Configuration
 
-Copy `config/config.sample.yml` to `config/config.yml` and edit the
-configuration directives as appropriate for your local `plotter`
-installation.
+Edit the configuration directives in `config/config2.yml` as
+appropriate for your local `plotter` installation.
 
  1. Set `locations: workspace: path:` to a local directory where the plotter scripts 
     can put results and intermediate files.  Personally I set this to
@@ -43,7 +40,8 @@ installation.
         staging server has to be writable via the `rsync`
         command, which is used by plotter scripts,
         and it has to be readable by the Neo4j server(s) via HTTP.
-        The examples in `config.sample.yml` should provide guidance on how to set these variables.
+        The examples in `config2.sample.yml` should provide guidance on how 
+        to set these variables.
      1. `rsync_command` specifies the `rsync`-like command to use to transfer local files
         to the staging server (this string does not include the source or target).  
         If not specified, defaults to `rsync -av`.
@@ -69,7 +67,7 @@ installation.
 
 Most `rake` commands require a `CONF=` parameter to specify which
 graphdb configuration is to be used.  The configurations are listed in
-`config.yml` but are typically `test` (for a private testing
+`config2.yml` but are typically `test` (for a private testing
 instance), `beta` (EOL beta instance), or `prod` (EOL production
 instance).
 
@@ -101,7 +99,7 @@ See `rake --tasks resource`.
 
 ## Workspace structure
 
-Workspace root comes from config.yml (via system.rb).  Default
+Workspace root comes from config2.yml (via system.rb).  Default
 is /home/jar/.plotter_workspace, which should be changed.
 
   (workspace root)/

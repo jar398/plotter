@@ -46,7 +46,7 @@ predicate of
 Branch painting is invoked using the `paint:` family of rake commands.
 Applicable parameters are:
 
-* `CONFIG`  - tag identifying configuration block within `config/config.yml`
+* `CONFIG`  - tag identifying configuration block within `config/config2.yml`
 * `ID`   - resource id (relative to publishing site)
 
 The following commands are supported
