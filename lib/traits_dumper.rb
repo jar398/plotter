@@ -51,7 +51,7 @@ require 'paginator'
 
 class TraitsDumper
 
-  def self.dump(graph, dest, clade_page_id = nil, chunksize = nil, tempdir = nil)
+  def self.dump(graph, dest, clade_page_id: nil, chunksize: nil, tempdir: nil)
     new(graph, chunksize, tempdir).dump_traits(dest, clade_page_id)
   end
 
@@ -63,34 +63,41 @@ class TraitsDumper
   # use neography, or the EOL web API, or any other method for
   # executing CQL queries.
 
-  def initialize(graph, chunksize = 10000, tempdir = nil)
+  def initialize(graph, chunksize, tempdir,
+                 filter_by_canonical: true,
+                 filter_by_parent: true,
+                 filter_by_parent_via_match: true)
     @graph = graph
     @chunksize = chunksize
     @tempdir = tempdir
     @paginator = Paginator.new(graph)
+    @filter_by_canonical = false
+    @filter_by_parent = true
+    @filter_by_parent_via_match = true
   end
 
   # dest is name of zip file to be written, or nil for default
   def dump_traits(dest, clade_page_id = nil)
-    clade = (clade_page_id ? Integer(clade_page_id) : nil) # kludge
-    @tempdir = @tempdir || File.join("/tmp", default_basename(clade))
+    clade = (clade_page_id == nil ? nil : Integer(clade_page_id)) # kludge
+    dest = "." unless dest
+    dest = File.join(dest, default_stem(clade) + ".zip") if
+      File.directory?(dest)
+
+    @tempdir = @tempdir || File.basename(clade)
     puts `date`
-    paths = [emit_terms,
-             emit_pages(clade),
+    paths = emit_terms +
+            [emit_pages(clade),
              emit_inferred(clade),
              emit_traits(clade),
              emit_metadatas(clade)]
     if not paths.include?(nil)
-      dest = "." unless dest
-      dest = File.join(dest, default_basename(clade) + ".zip") if
-        File.directory?(dest)
       write_zip(paths, dest) 
     end
     puts `date`
   end
 
-  # Mostly-unique tag based on current month and clade id
-  def default_basename(id)
+  # Unique-to-day tag based on current month and clade id
+  def default_stem(id)
     month = DateTime.now.strftime("%Y%m")
     tag = id || "all"
     "traits_#{tag}_#{month}"
@@ -103,22 +110,44 @@ class TraitsDumper
       directory = "trait_bank"
       zipfile.mkdir(directory)
       paths.each do |path|
-        if path
+        if path == nil
+          STDERR.puts "** a CSV file wasn't generated"
+        elsif File.exist?(path)
           name = File.basename(path)
           STDERR.puts "storing #{name} into zip file"
           zipfile.add(File.join(directory, name), path)
+        else
+          name = File.basename(path)
+          STDERR.puts "** CSV file #{path} is missing"
         end
       end
       # Put file name on its own line for easier cut/paste
-      STDERR.puts dest
+      STDERR.puts "Wrote traits to #{dest}"
     end
   end
 
   # Return query fragment for lineage (clade, page, ID) restriction,
   # if there is one.
-  def transitive_closure_part(clade)
-    if clade
-      ", (page)-[:parent*]->(clade:Page {page_id: #{clade}})"
+  def transitive_closure_part(root)
+    if root != nil
+      ", (page)-[:parent*]->(:Page {page_id: #{root}}) "
+    elsif @filter_by_parent && @filter_by_parent_via_match
+      ", (page)-[:parent]->() "
+    else
+      ""
+    end
+  end
+
+  def page_filter
+    clauses = []
+    if @filter_by_canonical
+      clauses.push("page.canonical IS NOT NULL")
+    end
+    if @filter_by_parent && !@filter_by_parent_via_match
+      clauses.push("(page)-[:parent]->()")
+    end
+    if clauses.length > 0
+      " WHERE #{clauses.join(" AND ")} "
     else
       ""
     end
@@ -138,35 +167,50 @@ class TraitsDumper
 
     terms_query =
      "MATCH (r:Term)
-      OPTIONAL MATCH (r)-[:parent_term]->(parent:Term)
-      RETURN r.uri, r.name, r.type, parent.uri
+      RETURN r.uri, r.name, r.type
       ORDER BY r.uri"
     # To add, maybe: trait_row_count, distinct_page_count, synonym_of,
     #   object_for_predicate
     #   and many others... definition, comment, attribution, section_ids, ...
-    terms_keys = ["uri", "name", "type", "parent_uri"]
-    supervise_query(terms_query, terms_keys, "terms.csv")
-    # returns nil on failure (e.g. timeout)
+    terms_keys = ["uri", "name", "type"]
+    s1, n1 = supervise_query(terms_query, terms_keys, "terms.csv")
+    STDERR.puts "#{n1} terms"
+
+    term_parents_query =
+     "MATCH (r:Term)-[:parent_term]->(parent:Term)
+      RETURN r.uri, parent.uri
+      ORDER BY r.uri, parent.uri"
+    term_parents_keys = ["uri", "parent_uri"]
+    s2, n2 = supervise_query(term_parents_query, term_parents_keys, "term_parents.csv")
+    STDERR.puts "#{n2} term parents"
+    [s1, s2]
   end
 
   #---- Query: Pages (taxa)
   # Ray Ma has pointed out that the traits dump contains page ids
   # that are not in this set, e.g. for interaction traits.
 
-  def emit_pages(clade)
+  def emit_pages(root)
+    filename = "pages.csv"
+    csv_path = File.join(@tempdir, filename)
+    if File.exist?(csv_path)
+      STDERR.puts "reusing previously created #{csv_path}"
+      return csv_path
+    end
+
     pages_query =
-     "MATCH (page:Page) #{transitive_closure_part(clade)}
-      WHERE page.canonical IS NOT NULL
+     "MATCH (page:Page) #{transitive_closure_part(root)}
+      #{page_filter}
       OPTIONAL MATCH (page)-[:parent]->(parent:Page)
       RETURN page.page_id, parent.page_id, page.rank, page.canonical"
     pages_keys = ["page_id", "parent_id", "rank", "canonical"] #fragile
-    supervise_query(pages_query, pages_keys, "pages.csv")
-    # returns nil on failure (e.g. timeout)
+    s, n = supervise_query(pages_query, pages_keys, filename)
+    s
   end
 
   #---- Query: Traits (trait records)
 
-  def emit_traits(clade)
+  def emit_traits(root)
     filename = "traits.csv"
     csv_path = File.join(@tempdir, filename)
     if File.exist?(csv_path)
@@ -191,12 +235,12 @@ class TraitsDumper
 
     for i in 0..predicates.length do
       predicate = predicates[i]
-      STDERR.puts "Predicate #{i} = #{predicate}" if i % 25 == 0
+      STDERR.puts "Traits: Predicate #{i} = #{predicate}" if i % 25 == 0
       next if is_attack?(predicate)
       traits_query =
        "MATCH (t:Trait)<-[:trait]-(page:Page)
-              #{transitive_closure_part(clade)}
-        WHERE page.canonical IS NOT NULL
+              #{transitive_closure_part(root)}
+        #{page_filter}
         MATCH (t)-[:predicate]->(predicate:Term {uri: '#{predicate}'})
         OPTIONAL MATCH (t)-[:supplier]->(r:Resource)
         OPTIONAL MATCH (t)-[:object_term]->(obj:Term)
@@ -212,15 +256,17 @@ class TraitsDumper
                t.method, t.remarks, t.sample_size, t.name_en,
                t.citation"
       # TEMPDIR/{traits,metadata}.csv.predicates/
-      ppath = supervise_query(traits_query, traits_keys,
-                              "traits.csv.predicates/#{i}.csv")
-      # ppath is nil on failure (e.g. timeout)
-      ppath ? files.push(ppath) : fails.push(ppath)
-    end
+      ppath, n = supervise_query(traits_query, traits_keys,
+                                 "#{dir}/#{i}.csv",
+                                 create_empty: false)
+      files.push(ppath) if n > 0
+      fails.push(ppath) if n < 0
+      #STDERR.puts("Nonempty traits chunk #{n} | #{ppath}") if n > 1
+    end    # end of for loop over predicates
     if fails.empty?
-      @paginator.assemble_chunks(files, csv_path)
+      @paginator.assemble_chunks(files, traits_keys, csv_path)
     else
-      STDERR.puts "** Deferred due to exception(s): traits.csv"
+      STDERR.puts "** Deferred due to exception(s): #{filename}"
       nil
     end
   end
@@ -239,7 +285,9 @@ class TraitsDumper
       WHERE (pred)<-[:predicate]-(:Trait)
       RETURN DISTINCT pred.uri
       LIMIT 10000'
-    run_query(predicates_query)["data"].map{|row| row[0]}
+    preds = run_query(predicates_query)["data"].map{|row| row[0]}
+    STDERR.puts "#{preds.length} predicates"
+    preds
   end
 
   # Prevent injection attacks (quote marks in URIs and so on)
@@ -257,7 +305,7 @@ class TraitsDumper
   # style does not encourage procedural abstraction (or at least, I
   # don't know how one properly share code here, in idiomatic Ruby).
 
-  def emit_metadatas(clade)
+  def emit_metadatas(root)
     filename = "metadata.csv"
     csv_path = File.join(@tempdir, filename)
     if File.exist?(csv_path)
@@ -273,26 +321,28 @@ class TraitsDumper
     for i in 0..predicates.length do
       predicate = predicates[i]
       next if is_attack?(predicate)
-      STDERR.puts "#{i} #{predicate}" if i % 25 == 0
+      STDERR.puts "Metadatas: Predicate #{i} = #{predicate}" if i % 25 == 0
       metadata_query = 
         "MATCH (m:MetaData)<-[:metadata]-(t:Trait),
               (t)<-[:trait]-(page:Page)
-              #{transitive_closure_part(clade)}
-        WHERE page.canonical IS NOT NULL
+              #{transitive_closure_part(root)}
+        #{page_filter}
         MATCH (m)-[:predicate]->(predicate:Term),
               (t)-[:predicate]->(metadata_predicate:Term {uri: '#{predicate}'})
         OPTIONAL MATCH (m)-[:object_term]->(obj:Term)
         OPTIONAL MATCH (m)-[:units_term]->(units:Term)
         RETURN m.eol_pk, t.eol_pk, predicate.uri, obj.uri, m.measurement, units.uri, m.literal"
-      ppath = supervise_query(metadata_query, metadata_keys,
-                              "metadata.csv.predicates/#{i}.csv")
+      ppath, n = supervise_query(metadata_query, metadata_keys,
+                                 "metadata.csv.predicates/#{i}.csv",
+                                 create_empty: false)
       # ppath is nil on failure (e.g. timeout)
-      ppath ? files.push(ppath) : fails.push(ppath)
+      files.push(ppath) if n > 0
+      fails.push(ppath) if n < 0
     end
     if fails.empty?
-      @paginator.assemble_chunks(files, csv_path)
+      @paginator.assemble_chunks(files, metadata_keys, csv_path)
     else
-      STDERR.puts "** Deferred due to exception(s): metadata.csv"
+      STDERR.puts "** Deferred due to exception(s): #{filename}"
       nil
     end
   end
@@ -308,7 +358,7 @@ class TraitsDumper
     run_query(predicates_query)["data"].map{|row| row[0]}
   end
 
-  def emit_inferred(clade)
+  def emit_inferred(root)
     filename = "inferred.csv"
     csv_path = File.join(@tempdir, filename)
     if File.exist?(csv_path)
@@ -318,9 +368,10 @@ class TraitsDumper
     inferred_keys = ["page_id", "inferred_trait"]
     inferred_query = 
        "MATCH (page:Page)-[:inferred_trait]->(trait:Trait)
-              #{transitive_closure_part(clade)}
+              #{transitive_closure_part(root)}
         RETURN page.page_id AS page_id, trait.eol_pk AS trait"
-    supervise_query(inferred_query, inferred_keys, filename)
+    s, n = supervise_query(inferred_query, inferred_keys, filename)
+    s
   end
 
   # -----
@@ -345,9 +396,10 @@ class TraitsDumper
   # @tempdir.  The return value is full pathname to csv file (which is
   # created even if empty), or nil if there was any kind of failure.
 
-  def supervise_query(query, columns, filename)
+  def supervise_query(query, columns, filename, create_empty: true)
     csv_path = File.join(@tempdir, filename)
-    @paginator.supervise_query(query, columns, @chunksize, csv_path)
+    @paginator.supervise_query(query, columns, @chunksize, csv_path,
+                               create_empty: create_empty)
   end
 
   # Run a single CQL query using the method provided (could be

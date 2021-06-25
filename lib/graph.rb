@@ -50,7 +50,7 @@ class Graph
   #   Neo4j level:
   #     cypher syntax - do not retry
 
-  def run_query(cql, tries = 3, retry_interval = 2)
+  def run_query(cql, tries = 3, retry_interval = 20)
     json = nil
     while tries > 0 do
       retr = false
@@ -59,22 +59,28 @@ class Graph
       begin
         json = @query_fn.call(cql)
         raise "Null response ???" if json == nil
-        raise Neo4jError.new(json) if Graph.errorful(json)
+        raise Neo4jError.new(json) if Graph.errorful(json)    # could be a timeout
       rescue Faraday::ConnectionFailed => e
         retr = true; loser = e
       rescue Errno::ECONNREFUSED => e
         retr = true; loser = e
       rescue Faraday::TimeoutError => e
+        STDERR.puts("Read timeout is #{read_timeout}")
         retr = true; loser = e
       rescue Net::ReadTimeout
+        STDERR.puts("Net:: timeout is default (60s??)")
         retr = true; loser = e
       rescue Retryable => e
         retr = true; loser = e
       # Net::HTTPGatewayTimeout and so on ...
+      rescue Neo4jError => e
+        loser = e
+        STDERR.puts("Neo4j error... #{loser}")
+        retr = true if Graph.is_timeout(loser)
       rescue => e
+        retr = true if Graph.is_timeout(loser)
         loser = e
       end
-      retr = true if Graph.is_timeout(loser)
       if retr and tries > 0
         STDERR.puts "** #{loser}"
         STDERR.puts "** Will retry after #{retry_interval} seconds, up to #{tries} times"
@@ -265,7 +271,7 @@ class Graph
         reports = errors.map{|x| "#{x["code"]} #{x["message"]}"}
         "Neo4j error(s) - #{reports.join(" | ")}"
       rescue
-        "** Unprintable Neo4jError exception"
+        "** Unprintable Neo4jError message exception"
       end
     end
   end

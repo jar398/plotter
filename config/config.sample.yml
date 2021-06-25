@@ -1,8 +1,10 @@
-# graphdb is where we will be storing things
-# publishing is mostly a source of resource identifiers
-# repository is for page id maps
+# Sample plotter configuration file.  Modify as appropriate for your
+# local installation.  See ../README.md
 
-# 'all relationships' id 835 something something
+# graphdb is the neo4j graph database, where we will be storing information
+# publishing is mostly mainly just a source of resource identifiers
+# repository is mostly for page id maps
+# dwca is for Darwin Core archives (usually obtained from opendata.eol.org)
 
 locations:
 
@@ -48,8 +50,9 @@ locations:
     via_api: prod_pub
     publishing: prod_pub
 
-  # update_token_file is dangerous - enables modification of the graphdb.
-  # Un-comment the location if you're ready to do updates.
+  # update_token_file is dangerous - it enables modification of the graphdb.
+  # This can totally screw up a deployed system if you're not careful.
+  # Un-comment the location if you're ready to trust plotter to do updates.
   prod_pub:
     url: 'https://eol.org/'
     token_file: 'production.token'
@@ -62,7 +65,8 @@ locations:
   workspace:
     path: '/home/jar/.plotter_workspace'
 
+  # Replace "stage", "stage.eo.org", and "~user" as appropriate
   staging:
     rsync_command: 'rsync -vaR'
-    rsync_specifier: 'varela:public_html/eol/stage'
-    url: 'http://varela.csail.mit.edu/~jar/eol/stage'
+    rsync_specifier: 'stage:public_html/eol/stage'
+    url: 'http://stage.eol.org/~user/eol/stage'

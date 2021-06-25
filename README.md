@@ -75,15 +75,29 @@ instance).
 
 ## All-traits dump
 
-See [doc/trait-bank-dumps.md](doc/trait-bank-dumps.md)
+Plotter can generate a zip file with a dump of all trait records.
+See [doc/trait-bank-dumps.md](doc/trait-bank-dumps.md).
 
 ## Trait inference ("branch painting")
 
-See [doc/branch-painting.md](doc/branch-painting.md)
+Plotter can do "branch painting" or inference of traits through the taxonomic hierarchy.
+See [doc/branch-painting.md](doc/branch-painting.md).
+
+## Resource metadata
+
+There are scripts for copying resource metadata into the graphdb 
+(see `rake --tasks traits:sync_resource_metadata`).
 
 ## Dynamic hierarchy
 
-There are scripts for adding ranks and vernacular names to the graphdb.
+There are scripts for adding ranks (see `rake --tasks hierarchy:sync_metadata`)
+and vernacular names (see `rake --tasks vernaculars`)
+to the graphdb.  It is also possible load a dynamic hierarchy into a test instance
+(see `rake --tasks hierarchy`).
+
+## Retrieve DwCA for a resource
+
+See `rake --tasks resource`.
 
 ## Workspace structure
 

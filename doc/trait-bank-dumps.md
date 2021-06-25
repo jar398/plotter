@@ -21,8 +21,9 @@ via environment the `rake` `VAR=value` syntax.
 * Parameters:
 
  - `ZIP`: pathname of the .zip file to be written (should include
-         the terminal '.zip').  Defaults to a location in the workspace.
- - `ID`: the page id of the taxon that is the root of the subtree to
+         the terminal '.zip').  Defaults to a location in the workspace 
+         e.g. `~/.plotter_workspace/ptest/trait_dumps/traits_7674_202106.zip`
+ - `ROOT`: the page id of the taxon that is the root of the subtree to
         be dumped.  Default is to dump the entire traitbank.
  - `CHUNK`: number of records in each 'chunk' to be fetched.
             Default is 10000.
@@ -46,7 +47,7 @@ further documentation and to see how it's implemented.
 
 The default zip file destination (`ZIP`) has a form similar to
 `traitbank_TAG_YYYYMM.zip` where `TAG` in the pathname is
-the page id (`ID`) or `all`.
+the page id (`ROOT`) or `all`.
 
     rake traits:dump CONF=beta ID=7674 CHUNK=50000
 
@@ -78,7 +79,7 @@ Generates a ZIP file dump of the entire traitbank graphdb.
 
 ### `rake traits:smoke`
 
-This is for testing only.  Same as `dump` but defaults `ID` to 7674
+This is for testing only.  Same as `dump` but defaults `ROOT` to 7674
 (Felidae) and `CHUNK` to 1000.
 
 ## Testing this module
