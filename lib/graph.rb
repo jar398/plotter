@@ -9,9 +9,13 @@ class Graph
 
   # Talk to neo4j directly using the neo4j transaction API.
 
-  def self.via_neo4j_directly(url)
+  def self.via_neo4j_directly(url, user, password)
+    raise "No neo4j user specified" unless user
+    raise "No neo4j password specified" unless password
     # Neography is dead and couldn't get direct_query to work.
-    query_fn = Proc.new {|cql| query_via_transaction_api(cql, url)}
+    uri = URI("#{url}/db/neo4j/tx/commit")
+    auth = "Basic #{Base64.encode64("#{user}:#{password}").strip}"
+    query_fn = Proc.new {|cql| query_via_transaction_api(cql, uri, auth)}
     Graph.new(query_fn)
   end
 
@@ -99,10 +103,8 @@ class Graph
   #   --header "Content-type: application/json" \
   #   --post-data='{"statements":[{"statement":"MATCH (p:Page) RETURN p.page_id LIMIT 1"}]}'
 
-  def self.query_via_transaction_api(cql, server)
-    uri = URI("#{server}/db/neo4j/tx/commit")
+  def self.query_via_transaction_api(cql, uri, auth)
     path = uri.path
-    userinfo = uri.userinfo
     blob = nil
 
     Faraday::Connection.new do |conn|
@@ -110,7 +112,7 @@ class Graph
       conn.adapter(:net_http) # NB: Last middleware must be the adapter
       # Make a request
       headers = {}
-      headers['Authorization'] = "Basic #{Base64.encode64(userinfo).strip}"
+      headers['Authorization'] = "Basic #{auth}"
       headers['Accept'] = "application/json;charset=UTF-8"
       headers['Content-type'] = "application/json"
       body = JSON.generate({'statements': [{"statement": cql}]})
@@ -120,7 +122,7 @@ class Graph
       end
       code = response.status
       message = response.reason_phrase
-      maybe_raise_http_error(code, message)
+      maybe_raise_http_error(uri, code, message, response.body)
       # Success
       blob = JSON.parse(response.body)    # can return nil
       if errorful(blob)
@@ -168,7 +170,7 @@ class Graph
       code = response.status
       message = response.reason_phrase
       # do we need to handle redirects??
-      maybe_raise_http_error(code, message)
+      maybe_raise_http_error(uri, code, message, response.body)
       # Success
       blob = JSON.parse(response.body)    # can return nil
     end
@@ -276,7 +278,7 @@ class Graph
     end
   end
 
-  def self.maybe_raise_http_error(code, message)
+  def self.maybe_raise_http_error(uri, code, message, body)
     if code == nil
       raise "HTTP request not made ???"
     elsif code == 200
@@ -288,10 +290,11 @@ class Graph
       # HTTP 504 Gateway Timeout    - e.g. neo4j timeout via EOL proxy
       raise Retryable.new(code, message)
     elsif code >= 300 && code < 400
-      raise "HTTP redirect: #{code} #{message}\n  Location: #{response['Location']}"
+      raise "HTTP redirect: #{code} #{message}\n  URI: #{uri.to_s}\n  Location: #{response['Location']}"
     else
-      # Also include selected info from response.body ?
-      raise "HTTP response: #{code} #{message}"
+      # response.body is too much information - subset it somehow ???
+      STDERR.puts("--begin http response body--\n#{body}\n--end http response body--")
+      raise "HTTP response: #{code} #{message}\n  URI: #{uri.to_s}"
     end
   end
 
