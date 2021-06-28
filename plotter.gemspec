@@ -49,6 +49,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "faraday-em_synchrony", ">= 1.0.0"
   spec.add_development_dependency "faraday-em_http", ">= 1.0.0"
   spec.add_development_dependency "faraday-excon", ">= 1.1.0"
+  spec.add_development_dependency "rubyzip", ">= 2.2.0"
 
 
   # OGM (object graph mapper for Neo4J), via @mvitale at eol/eol_website.
