@@ -4,16 +4,12 @@ A collection of utilities for reading and modifying EOL graph databases.
 
 ## Installation
 
-Clone the repository.  Copy config/config2.sample.yml to config/config2.yml
-and modify as follows.
-
-After configuration you can test using `rake`, e.g.
-
-    rake resource:info CONF=prod ID=40
+Clone the repository.
 
 ## Configuration
 
-Edit the configuration directives in `config/config2.yml` as
+Copy `config/config2.sample.yml` to `config/config2.yml`
+and modify as follows to make it
 appropriate for your local `plotter` installation.
 
  1. Set `locations: workspace: path:` to a local directory where the plotter scripts 
@@ -60,13 +56,14 @@ appropriate for your local `plotter` installation.
         in `~/.ssh/config` or with an -I argument in the `rsync_command`.
 
 
-## Choosing a configuration
+## Choosing EOL servers
 
-Most of the `rake` commands require a `CONF=` parameter to specify which
-graphdb configuration is to be used.  The configurations are listed in
-`config2.yml` but are typically `test` (for a private testing
-instance), `beta` (EOL beta instance), or `prod` (EOL production
-instance).
+Most of the `rake` commands require a `CONF=` parameter to specify
+which publishing and/or graphdb server is to be contacted (and, in
+turn, which EOL repository (content) server is to be consulted).  The
+graphdb choices are listed in `config2.yml` but are typically `test`
+(for a private testing instance), `beta` (EOL beta instance), or
+`prod` (EOL production instance).
 
 ## 'Smoke test'
 
@@ -156,7 +153,7 @@ The 'concordance' feature is not currently working.
 * Make a new configuration file with `cp config/config2.sample.yml config/config2.yml`.
 * Add details to `config/config2.yml` based on what you did for your previous config file
   `config/config.yml`.  The structure and syntax are slightly different but 
-  overall the details are mostly the same.
+  overall the details are mostly the same.  I hope that this step is self-evident.
 * Traits dumps now go in workspace subdirectory `prod/trait_dumps` (for production).
   Modify scripts for this new location as necessary.
 * Traits dump temp files will now go in workspace subdirectory `prod/trait_dumps/tmp/`

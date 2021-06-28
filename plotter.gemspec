@@ -40,9 +40,11 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 12.3.3"
   spec.add_development_dependency "minitest", "~> 5.0"
   spec.add_development_dependency "nokogiri"
+  spec.add_development_dependency "faraday", ">= 1.4.3"
 
   # OGM (object graph mapper for Neo4J), via @mvitale at eol/eol_website.
-  spec.add_development_dependency "activegraph", "~> 10.0.0"
-  spec.add_development_dependency "neo4j-ruby-driver", "~> 1.7.0" 
+  # I couldn't get these to work, so suppressing dependencies for now
+  # spec.add_development_dependency "activegraph", "~> 10.0.0"
+  # spec.add_development_dependency "neo4j-ruby-driver", "~> 1.7.0" 
 
 end
