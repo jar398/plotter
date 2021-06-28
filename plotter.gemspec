@@ -40,7 +40,16 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 12.3.3"
   spec.add_development_dependency "minitest", "~> 5.0"
   spec.add_development_dependency "nokogiri"
+
+  # I'm shooting in the dark here.  Some of these might not be needed.
   spec.add_development_dependency "faraday", ">= 1.4.3"
+  spec.add_development_dependency "faraday_middleware", ">= 1.0.0"
+  spec.add_development_dependency "faraday-net_http", ">= 1.0.1"
+  spec.add_development_dependency "faraday-net_http_persistent", ">= 1.1.0"
+  spec.add_development_dependency "faraday-em_synchrony", ">= 1.0.0"
+  spec.add_development_dependency "faraday-em_http", ">= 1.0.0"
+  spec.add_development_dependency "faraday-excon", ">= 1.1.0"
+
 
   # OGM (object graph mapper for Neo4J), via @mvitale at eol/eol_website.
   # I couldn't get these to work, so suppressing dependencies for now
