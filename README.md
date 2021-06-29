@@ -12,6 +12,7 @@ Copy `config/config2.sample.yml` to `config/config2.yml`
 and modify as follows to make it
 appropriate for your local `plotter` installation.
 
+ 1. Configure neo4j URL, user name, password, and graphdb name
  1. Set `locations: workspace: path:` to a local directory where the plotter scripts 
     can put results and intermediate files.  Personally I set this to
     directory `.plotter_workspace` in my home directory.

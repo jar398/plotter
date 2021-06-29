@@ -13,6 +13,7 @@ locations:
     neo4j: 'http://localhost:7474'
     neo4j_user: 'neo4j'
     neo4j_password: 'set this as appropriate'
+    graphdb_name: eol
     publishing: prod_pub
 
   # EOL beta

@@ -14,9 +14,10 @@ class TraitBank < Location
 
     url = @config["neo4j"]
     if url
-      @graph = Graph.via_neo4j_directly(url,
-                                        @config["neo4j_user"],
-                                        @config["neo4j_password"])  #Graph.via_neography(url)
+      @graph = Graph.via_neo4j_directly(@config["graphdb_name"] || "eol",
+                                        url,
+                                        @config["neo4j_user"] || "neo4j",
+                                        @config["neo4j_password"] || "neo4j")
     else
       v3api = @system.get_location(@config["via_api"])
       raise "no api" unless v3api

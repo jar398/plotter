@@ -9,11 +9,10 @@ class Graph
 
   # Talk to neo4j directly using the neo4j transaction API.
 
-  def self.via_neo4j_directly(url, user, password)
+  def self.via_neo4j_directly(graphdb_name, url, user, password)
     raise "No neo4j user specified" unless user
     raise "No neo4j password specified" unless password
-    # Neography is dead and couldn't get direct_query to work.
-    uri = URI("#{url}/db/neo4j/tx/commit")
+    uri = URI("#{url}/db/#{graphdb_name}/tx/commit")
     auth = "Basic #{Base64.encode64("#{user}:#{password}").strip}"
     query_fn = Proc.new {|cql| query_via_transaction_api(cql, uri, auth)}
     Graph.new(query_fn)
@@ -175,46 +174,6 @@ class Graph
       blob = JSON.parse(response.body)    # can return nil
     end
     blob
-  end
-
-  # Copied from https://github.org/eol/eol_website/lib/trait_bank.rb .
-  # I couldn't get this code to work in plotter, probably because of a
-  # missing or incorrect dependency.  But this code ought to work if
-  # run inside the eol_website application.
-
-  def self.direct_query(q, params={})
-    response = nil
-    q.sub(/\A\s+/, "")
-    response = ActiveGraph::Base.query(q, params, wrap: false)
-    # Not sure what activegraph does on HTTP or Neo4j error?
-    raise "ActiveGraph error" if response.nil?
-
-    response_a = response.to_a # NOTE: you must call to_a since the raw response only allows for iterating through once
-
-    # Map neo4j-ruby-driver response to neography-like response
-    cols = response_a.first&.keys || []
-    data = response_a.map do |row|
-      cols.map do |col|
-        col_data = row[col]
-        if col_data.respond_to?(:properties)
-          { 
-            'data' => col_data.properties.stringify_keys,
-            'metadata' => { 'id' => col_data.id }
-          }
-        else
-          col_data
-        end
-      end
-    end
-
-    result = { 
-      'columns' => cols.map { |c| c.to_s }, # hashrocket for string keys
-      'data' => data
-    }
-
-    result['plan'] = response.summary.plan.to_h unless response.summary.plan.nil?
-
-    result
   end
 
   # This isn't deployed yet but seems a logical service to have
