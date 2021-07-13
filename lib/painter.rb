@@ -73,7 +73,7 @@ class Painter
   def prepare
     n = count
     if n > 0
-      STDERR.puts "Please erase inferred relationships before painting (found #{n})"
+      raise "Please erase inferred relationships before painting (found #{n}) (rake paint:erase)"
     else
       infer
       stage
