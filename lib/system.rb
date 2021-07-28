@@ -50,11 +50,11 @@ class System
     def load_json(specifier)    # file name or URL
       # First get the literal string
       if specifier.is_a?(URI)
-        puts "# GET #{url}"
+        STDERR.puts "# Get #{url}"
         strng = Net::HTTP.get(url)
       elsif is_url?(specifier)
         url = specifier
-        puts "# Get #{url}"
+        STDERR.puts "# Get #{url}"
         strng = Net::HTTP.get(URI.parse(url))
         # TBD: check whether success return.
       else

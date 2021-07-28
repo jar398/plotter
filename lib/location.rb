@@ -108,10 +108,10 @@ class Location
       # Ideally this would be cached in the instance workspace
       # when_cached = workspace_path("resource_records.csv")
       when_cached = @config["resource_records"]    # maybe nil
-      puts "# Resource records when cached would be at #{when_cached}"
+      STDERR.puts "# Resource records when cached would be at #{when_cached}"
       unless File.exists?(when_cached)
         url = "#{site}resources.json?per_page=100000"
-        puts "# Reading #{url}"
+        STDERR.puts "# Reading #{url}"
         System.copy_from_internet(url, when_cached)
       end
       obj = System.load_json(when_cached)
@@ -121,10 +121,10 @@ class Location
     end
     if obj.key?("resources")
       records = obj["resources"]
-      puts "# Read #{records.length} resource records"
+      STDERR.puts "# Read #{records.length} resource records"
       records
     else
-      puts "** No resource records"
+      STDERR.puts "** No resource records"
       []
     end
   end
@@ -132,7 +132,7 @@ class Location
   def flush_resource_records_cache
     if @config.key?("resource_records")
       path = @config["resource_records"]
-      puts "# Attempting deletion of #{path}"
+      STDERR.puts "# Attempting deletion of #{path}"
       FileUtils.rm_rf(path)
     end
   end
@@ -178,8 +178,8 @@ class Location
     return record2 unless record
     record = record.merge(record2) do |key, oldval, newval|
       if oldval != newval
-        puts "** Conflict over value of property #{key} of resource #{id}"
-        puts "** Overriding site's value #{oldval} with configured value #{newval}"
+        STDERR.puts "** Conflict over value of property #{key} of resource #{id}"
+        STDERR.puts "** Overriding site's value #{oldval} with configured value #{newval}"
       end
       newval
     end
@@ -227,7 +227,7 @@ class Location
     token_path = @config["update_token_file"] ||
                  @config["token_file"]
     token = File.read(token_path).strip
-    puts "# Graphdb proxy URL is #{get_url}"
+    STDERR.puts "# Graphdb proxy URL is #{get_url}"
     Graph.via_eol_server(get_url, token)
   end
 

@@ -58,19 +58,20 @@ class Dwca
   end
 
   # Ensure that the unpack/ directory is populated from the archive file.
+  # Returns path of directory containing unpacked files.
 
   def ensure_unpacked
     dir = get_unpacked_loc
     meta = File.join(dir, "meta.xml")
     if File.exists?(meta)
       STDERR.puts "Found #{meta} so assuming resource is already unpacked"
-      return dir 
     else
       # Files aren't there.  Ensure that the archive is present locally,
       # then unpack it.
       unpack_archive(ensure_archive_local_copy(dir), dir)
       # We can delete the zip file afterwards if we want... it won't be needed
     end
+    return dir 
   end
 
   def ensure_archive_local_copy(dir)

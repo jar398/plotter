@@ -101,10 +101,16 @@ class Resource
 
   # ---------- Processing stage 3: workspace to workspace conversion...
   #   convert local unpacked copy of dwca to files for graphdb
+  # Returns directory containing data files
 
   def fetch
     @location.assert_repository
     get_dwca.ensure_unpacked          # Extract meta.xml and so on
+  end
+
+  def dwca_directory
+    @location.assert_repository
+    get_dwca.get_unpacked_loc          # Extract meta.xml and so on
   end
 
   # ---------- Harvesting (stage 3)

@@ -30,11 +30,21 @@ namespace :resource do
     get_repo_resource.fetch
   end
 
+  desc "Print location of directory containing resource's unpacked DwCA"
+  task :dwca_directory do
+    STDOUT.puts get_repo_resource.dwca_directory
+  end
+
   desc "Extract resource's page id map from repository, writing to file"
   task :map do
     get_repo_resource.get_page_id_map() 
     path = get_repo_resource.page_id_map_path
-    puts "Page id map is at #{path}"
+    STDERR.puts "Page id map is at #{path}"
+  end
+
+  desc "Path to where page id map will be (or is) stored"
+  task :map_path do
+    puts get_repo_resource.page_id_map_path
   end
 
   desc "Show miscellaneous information about a resource"
@@ -47,6 +57,7 @@ namespace :resource do
     get_repo_resource.show_repository_info()
   end
 
+  desc "List of resource's tables in CSV form"
   task :tables do
     tables = get_repo_resource.get_dwca.get_tables.values
     tables.each do |t|

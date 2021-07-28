@@ -72,7 +72,7 @@ As a simple first test of installation, try
 
     rake resource:info CONF=beta ID=40
 
-which will generate a bunch of information about resource 40 on the
+which will display a bunch of information about resource 40 on the
 beta publishing instance.
 
 ## All-traits dump
@@ -87,8 +87,16 @@ See [doc/branch-painting.md](doc/branch-painting.md).
 
 ## Resource metadata
 
-There are scripts for copying resource metadata into the graphdb 
-(see `rake --tasks traits:sync_resource_metadata`).
+There is a script for copying resource metadata into the graphdb.  For example:
+
+    rake traits:sync_resource_metadata CONF=prod
+
+ensures that there is a neo4j `Resource` node for every resource known
+to the production publishing server, and sets the `resource_id`,
+`name`, `description`, and `repository_id` property of each.
+
+Normally it won't be necessary to invoke this script since this
+information is also transferred on a 'publish'.
 
 ## Dynamic hierarchy
 
@@ -96,6 +104,11 @@ There are scripts for adding ranks (see `rake --tasks hierarchy:sync_metadata`)
 and vernacular names (see `rake --tasks vernaculars`)
 to the graphdb.  It is also possible load a dynamic hierarchy into a test instance
 (see `rake --tasks hierarchy`).
+
+## Deltas
+
+There are some general scripts for manipulating CSV files, and in
+particular for comparing them ('delta' or 'diff').  See [doc/csv.md](doc/csv.md).
 
 ## Retrieve DwCA for a resource
 
@@ -105,6 +118,13 @@ See `rake --tasks resource`.
 
 Workspace root comes from config2.yml (via system.rb).  Default
 is /home/jar/.plotter_workspace, which should be changed.
+
+Sometimes the choice of location is a bit arbitrary or even wrong.
+In general artifacts that depend only on the repository goes in
+`xxx_repo` (for xxx = prod, beta, test); if it depends on the
+additionally on the publishing relational database it goes in
+`xxx_pub`; and if it depends additionally on the graphdb it goes in
+`xxx`.
 
   (workspace root)/
     dwca/
