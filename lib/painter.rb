@@ -217,6 +217,7 @@ class Painter
 
     inferences = {}
     duplicates = []
+    STDERR.puts("assert_path = #{assert_path}")
     CSV.foreach(assert_path, {encoding:'UTF-8'}) do |page_id, trait, name, value, ovalue|
       next if page_id == "page_id"    # gross
       if inferences.include?([page_id, trait])
@@ -328,7 +329,7 @@ class Painter
       run_chunked_query(query,
                         @chunksize,
                         @resource.workspace_path(File.join(inf_dir, "retract.csv")),
-                        skipping)
+                        skipping: skipping)
     [assert_path, retract_path]
   end
 
@@ -371,9 +372,14 @@ class Painter
   # on success, nil on failure.
 
   def run_chunked_query(cql, chunksize, csv_path,
-                        skipping=true, assemble=true)
+                        skipping: true)
     p = Paginator.new(get_graph)
-    p.supervise_query(cql, nil, chunksize, csv_path, skipping, assemble)
+    path, n = p.supervise_query(cql, nil, chunksize, csv_path,
+                                skipping: skipping,
+                                keep_chunks: false)
+    # ?????
+    raise "Exception in query" unless n >= 0
+    path
   end
 
   # ------------------------------------------------------------------

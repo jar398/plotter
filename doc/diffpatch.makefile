@@ -33,7 +33,7 @@ work/diff-dha-dhb.csv: work/dha_accepted.csv work/dhb_accepted.csv $P/diff.py
 	mv $@.new $@
 
 COLUMNS_TO_KEEP = \
-  EOLid,taxonID,parentNameUsageID,acceptedNameUsageID,taxonRank,canonicalName,scientificName,Landmark
+  EOLid,taxonID,parentNameUsageID,acceptedNameUsageID,taxonRank,canonicalName,scientificName,source,landmark_status
 ACC_COL_DROP = \
   taxonID,parentNameUsageID,acceptedEOLid
 SYN_COL_KEEP = \
@@ -57,7 +57,7 @@ work/dha_accepted.csv: $(DHA_TABLE) $(DHA_MAP) $(CODE)
 
 work/dhb_accepted.csv: $(DHB_TABLE) $(DHB_MAP) $(CODE)
 	mkdir -p work
-	$P/start.py --input $(DHB_TABLE) \
+	$P/start.py --input $(DHB_TABLE) --clean \
 	| $P/project.py --keep="$(COLUMNS_TO_KEEP)" \
 	| $P/map.py --mapping $(DHB_MAP) \
 	| $P/shunt.py --synonyms work/dhb_shunt.csv \
@@ -68,9 +68,6 @@ work/dhb_accepted.csv: $(DHB_TABLE) $(DHB_MAP) $(CODE)
 	> work/dhb_synonyms.csv.new
 	mv $@.new $@
 	mv work/dhb_synonyms.csv.new work/dhb_synonyms.csv
-
-
-# TBD: convert numeric "Landmark" to symbolic "landmark" ?
 
 $(DHA_MAP): 
 	rake resource:map CONF=prod REPO_ID=$(ID_A)

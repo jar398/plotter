@@ -41,8 +41,10 @@ class Paginator
   # -----
 
   # supervise_query: generate a set of 'chunks', then put them
-  # together into a single .csv file.  Returns full path to the 
-  # .csv file.
+  # together into a single .csv file.  Returns [path, n] where path is
+  # the path to the .csv file and n is an approximation to the number
+  # of rows in the .csv file.  (-1 means error, 0 means no rows, >0 
+  # means usually at least 1 row)
 
   # A chunk (or 'part') is the result set of a single cypher query.
   # The queries are in a single supervise_query call are all the same,
@@ -61,7 +63,7 @@ class Paginator
 
   def supervise_query(query, headings, chunksize, csv_path,
                       skipping: true,
-                      keep_chunks: nil,
+                      keep_chunks: false,
                       create_empty: true)
     if File.exist?(csv_path)
       #STDERR.puts "Using previously generated file #{csv_path}"

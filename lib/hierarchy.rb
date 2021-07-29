@@ -95,6 +95,7 @@ class Hierarchy
     # First, create a Page node for each page id
     # EOLid,parentEOLid,taxonRank,canonicalName,scientificName,
     #   taxonomicStatus,Landmark
+    # This isn't right.  Landmark is numeric while landmark should be symbolic ??
     query = "USING PERIODIC COMMIT
              LOAD CSV WITH HEADERS FROM '#{pages_url}'
              AS row
@@ -198,6 +199,8 @@ class Hierarchy
   end
 
   # Extract hierarchy from graphdb
+  # 7/28/2021: should be EOLid,taxonRank,canonicalName,scientificName,Landmark,parentEOLid
+
   def dump(csv_path)
     pag = Paginator.new(get_graph)
     cql = "MATCH (p:Page)
