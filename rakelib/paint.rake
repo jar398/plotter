@@ -47,7 +47,8 @@ namespace :paint do
 
   desc "Show count of number of inferred relationships"
   task :count do 
-    get_painter.count
+    count = get_painter.count
+    STDERR.puts "#{count} inferred trait assertions"
   end
 
   desc "Quality control checks to perform prior to inference"

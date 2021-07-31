@@ -103,14 +103,8 @@ class Painter
                          (:Page)
                    RETURN COUNT(*)
                    LIMIT 10")
-    if r
-      count = r["data"][0][0]
-      STDERR.puts count
-      count
-    else
-      STDERR.puts "No count!?"
-      0
-    end
+    raise "No count!?" unless r
+    r["data"][0][0]
   end
 
   # Quality control - for each trait, check its start and stop
@@ -149,7 +143,7 @@ class Painter
         STDERR.puts("Stop page #{id} = #{canonical} not under any start page for #{trait}")
       end
     else
-      puts "Empty cypher result?"
+      STDERR.puts "Empty cypher result?"
     end
   end
 

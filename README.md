@@ -178,4 +178,4 @@ The 'concordance' feature is not currently working.
 * Traits dumps now go in workspace subdirectory `prod/trait_dumps` (for production).
   Modify scripts for this new location as necessary.
 * Traits dump temp files will now go in workspace subdirectory `prod/trait_dumps/tmp/`
-
+* Be sure to include `R` among the rsync flags (see `rsync_command:`)
