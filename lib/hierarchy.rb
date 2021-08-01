@@ -210,7 +210,7 @@ class Hierarchy
                 p.rank as taxonRank,
                 p.canonical as canonicalName,
                 p.landmark as landmark
-           RETURN EOLid, parentEOLid, taxonRank, canonicalName, landmark"
+           RETURN id(p), EOLid, parentEOLid, taxonRank, canonicalName, landmark"
     pag.supervise_query(cql, nil, @chunksize, csv_path)
   end
 
