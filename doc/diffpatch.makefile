@@ -5,18 +5,20 @@
 
 P = pylib
 
-# Compare DH 0.9 (resource 1 -> 1) to DH 1.1 (resource 724 -> 817)
+# Compare DH 0.9 to DH 1.1.
+# Resources ids in production repository are 1 and 817, or
+# 1 and 724 in production publishing.
 
-ID_A = 1
-ID_B = 817
+A_REPO_ID = 1
+B_REPO_ID = 817
 
-DHA := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(ID_A))
-DHB := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(ID_B))
+DHA := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(A_REPO_ID))
+DHB := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(B_REPO_ID))
 
 DHA_TABLE = $(DHA)/taxa.txt
 DHB_TABLE = $(DHB)/taxon.tab
-DHA_MAP = ~/.plotter_workspace/prod_repo/resources/$(ID_A)/page_id_map.csv
-DHB_MAP = ~/.plotter_workspace/prod_repo/resources/$(ID_B)/page_id_map.csv
+DHA_MAP = ~/.plotter_workspace/prod_repo/resources/$(A_REPO_ID)/page_id_map.csv
+DHB_MAP = ~/.plotter_workspace/prod_repo/resources/$(B_REPO_ID)/page_id_map.csv
 
 
 all: work/diff-dha-dhb.csv
@@ -70,10 +72,10 @@ work/dhb_accepted.csv: $(DHB_TABLE) $(DHB_MAP) $(CODE)
 	mv work/dhb_synonyms.csv.new work/dhb_synonyms.csv
 
 $(DHA_MAP): 
-	rake resource:map CONF=prod REPO_ID=$(ID_A)
+	rake resource:map CONF=prod REPO_ID=$(A_REPO_ID)
 $(DHB_MAP):
-	rake resource:map CONF=prod REPO_ID=$(ID_B)
+	rake resource:map CONF=prod REPO_ID=$(B_REPO_ID)
 $(DHA_TABLE):
-	rake resource:fetch CONF=prod REPO_ID=$(ID_A)
+	rake resource:fetch CONF=prod REPO_ID=$(A_REPO_ID)
 $(DHB_TABLE):
-	rake resource:fetch CONF=prod REPO_ID=$(ID_B)
+	rake resource:fetch CONF=prod REPO_ID=$(B_REPO_ID)
