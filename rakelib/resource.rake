@@ -4,7 +4,7 @@ require 'resource'
 namespace :resource do
 
   def get_trait_bank
-    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'test')")
+    tag = ENV['CONF'] || raise("Please provide env var CONF (e.g. 'CONF=test')")
     System.system.get_trait_bank(tag)
   end
 

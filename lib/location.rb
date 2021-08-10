@@ -203,6 +203,8 @@ class Location
     resource_from_record(record, graphp) if record
   end
 
+  # Yes, I do in fact know that this is a kludge.
+
   def resource_from_record(record, graphp)
     id = record["id"]
     res = @resources_by_id[id]
