@@ -224,4 +224,16 @@ class Paginator
     FileUtils.mv temp, path
     path
   end
+
+  def supervise_command(url)
+    urls = System.system.read_manifest(url)
+    if urls
+      urls.each do |url|
+        load_pages_chunk(url, op = "MATCH")
+      end
+    else
+      load_pages_chunk(url)
+    end
+  end
+
 end

@@ -47,8 +47,9 @@ namespace :traits do
     tb = get_trait_bank
     pub = tb.get_publishing_location
     repo = pub.get_repository_location
-    pids = pub.get_site_resource_records.keys
+    pids = pub.get_own_resource_records.keys
     puts "# #{pids.size} resources in publishing repo"
+    header_pending = true
     pids.sort.each do |pid|
       pr = pub.get_own_resource(pid)
       rr = pr.get_repository_resource
@@ -56,9 +57,20 @@ namespace :traits do
         vs = rr.versions
         if vs.size > 1 #pid % 17 == 0
           vs.each do |vid|
-            lp_url = rr.get_landing_page_url
-            dwca_tag = lp_url[-8..]
-            puts("#{pid} #{vid} #{dwca_tag} #{rr.name}")
+            dwca_url = rr.get_dwca.get_dwca_url
+            x = dwca_url.index("resource/")
+            if x != nil
+              dwca_url = dwca_url[x+9..] 
+            else
+              x = dwca_url.index("resources/")
+              dwca_url = dwca_url[x+10..] if x != nil
+            end
+            dwca_tag = dwca_url
+            if header_pending
+              puts "id_in_publishing\tid_in_repository\tdwca_tag\tname"
+              header_pending = false
+            end
+            puts "#{pid}\t#{vid}\t#{dwca_tag}\t#{rr.name}"
           end
         end
       end

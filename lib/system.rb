@@ -124,40 +124,19 @@ class System
   # ---------- DwCA stuff
 
   # If you don't have an opendata landing page (which provides a
-  # uuid), just generate a random number (in hex).
-  def get_dwca(url, landing_page, resource_name = nil)
-    id = landing_page[-8..]     # low order 8 bits of landing page uuid
-    return @dwcas[id] if @dwcas[id]
-    rel = File.join("dwca", id)
+  # uuid), just generate a random number (in hex)...?
+  def get_dwca(specifier, key, resource_name = nil)
+    return @dwcas[key] if @dwcas[key]
+    rel = File.join("dwca", key)
     dir = workspace_path(rel)
     FileUtils.mkdir_p(dir)
     dwca = Dwca.new(dir,
-                    url,
-                    {"url": url,
-                     "landing_page": landing_page,
+                    specifier,
+                    {"url": specifier,
                      "resource_name": resource_name,
-                     "id": id})
-    @dwcas[id] = dwca
+                     "id": key})
+    @dwcas[key] = dwca
     dwca
-  end
-
-  def get_opendata_dwca(opendata_lp_url, resource_name = nil)
-    dwca_url = get_dwca_url(opendata_lp_url)
-    get_dwca(dwca_url, opendata_lp_url, resource_name)
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb.
-  # The HTML file is small; no need to cache it.
-  def get_dwca_url(opendata_lp_url)
-    raise "No DwCA landing page URL provided" unless opendata_lp_url
-    begin
-      raw = open(opendata_lp_url)
-    rescue Net::ReadTimeout => e
-      fail_with(e)
-    end
-    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
-    html = Nokogiri::HTML(raw)
-    html.css('p.muted a').first['href']
   end
 
   # ----------------------------------------------------------------------

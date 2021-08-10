@@ -1,5 +1,9 @@
 # Location could be a graphdb instance, publishing instance, repository instance, etc.
 
+require 'graph_resource'
+require 'publishing_resource'
+require 'repository_resource'
+
 class Location
 
   def initialize(system, config, name)
@@ -194,26 +198,27 @@ class Location
   end
 
   # For ID= on rake command line... get graphdb resource
-  def get_own_resource(id)
+  def get_own_resource(id, graphp = false)
     record = get_own_resource_record(id)
-    resource_from_record(record) if record
+    resource_from_record(record, graphp) if record
   end
 
-  def resource_from_record(record)
+  def resource_from_record(record, graphp)
     id = record["id"]
     res = @resources_by_id[id]
     unless res
-      res = Resource.new(record, self)
+      if graphp
+        res = GraphResource.new(record, self)
+      elsif record.include?("repository_id")  # publishing
+        res = PublishingResource.new(record, self)
+      elsif record.include?("opendataUrl")    # repository
+        res = RepositoryResource.new(record, self)
+      else
+        raise "unrecognized type for resource record #{id}"
+      end
       @resources_by_id[id] = res
     end
     res
-  end
-
-  # For pub/repo resources
-  def get_own_resource(id)
-    get_own_resource_records
-    record = @records_by_id[id.to_i]
-    resource_from_record(record) if record
   end
 
   def id_to_name(id)

@@ -1,3 +1,6 @@
+# A trait bank contains a bunch of things other than traits, notably a
+# Page hierarchy, and 'name usages' that explain the meanings of the
+# Pages.
 
 class TraitBank < Location
 
@@ -42,7 +45,7 @@ class TraitBank < Location
   def get_resource(id)
     rec = get_resource_records[id]
     raise "no resource record for #{id}" unless rec
-    resource_from_record(rec)
+    resource_from_record(rec, true)
   end
 
   # ----------------------------------------------------------------------
