@@ -40,29 +40,7 @@ See the associated support module
 [traits_dumper.rb](../lib/traits_dumper.rb) for
 further documentation and to see how it's implemented.
 
-## From the shell using HTTP and the API
-
-The default zip file destination (`ZIP`) has a form similar to
-`traitbank_TAG_YYYYMM.zip` where `TAG` in the pathname is
-the page id (`ROOT`) or `all`.
-
-    rake traits:dump CONF=beta ID=7674 CHUNK=50000
-
-For the record, the following command completed successfully on
-varela.csail.mit.edu on 29 May 2019:
-
-    TEMP=/wd/tmp/all_201905 CHUNK=10000 TOKEN=`cat ~/a/eol/api.token` time \
-      ruby -r ./lib/traits_dumper.rb -e TraitsDumper.main
-
-which should be equivalent to the more modern form
-
-    time rake traits:dump CONF=prod CHUNK=10000 TEMP=/wd/tmp/all_201905
-
-`TEMP` is redirected in case the default `/tmp/...` is on a file
-system lacking adequate space for this task.  `CHUNK` is set to 10000
-because an earlier run with `CHUNK=20000` failed with a timeout.
-
-## Via `rake` using neography
+## Via `rake`
 
 The default zip path (`ZIP`) is formed from the directory returned by
 the `path` method of the `DataDownload` class, which I believe
@@ -73,11 +51,6 @@ current month.
 ### `rake traits:dump`
 
 Generates a ZIP file dump of the entire traitbank graphdb.
-
-### `rake traits:smoke`
-
-This is for testing only.  Same as `dump` but defaults `ROOT` to 7674
-(Felidae) and `CHUNK` to 1000.
 
 ## Testing this module
 

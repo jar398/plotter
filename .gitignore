@@ -1,4 +1,5 @@
 *~
+*.tmp
 /.bundle/
 /.yardoc
 /_yardoc/
@@ -14,3 +15,4 @@ config/*-publishing
 TAGS
 /work/
 __pychache__
+w
