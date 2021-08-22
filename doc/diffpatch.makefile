@@ -6,47 +6,53 @@
 #
 # For example:
 
-#A=work/dh11-mapped
-#B=work/dh12
-
+# 1.1 / 1.2 mammals only 
 A=work/dh11-mapped-mammals
 B=work/dh12-mammals
 
-all: work/delta.csv
+# 0.9 / 1.1
+# time make -f doc/diffpatch.makefile A=work/dh09-mapped B=work/dh11
+
+# 1.1 / 1.2
+# time make -f doc/diffpatch.makefile A=work/dh11-mapped B=work/dh12 
+
+all: work/round.csv
 
 SHELL = /usr/bin/bash
 P = pylib
 
-# Columns managed by diff/patch
+# Columns that are managed by diff/patch
 MANAGED="taxonID,canonicalName,scientificName,taxonRank,source,taxonomicStatus,datasetID,EOLid"
 SORTKEY="taxonID"
 
 # Formerly: $P/project.py --keep $(MANAGED) <$< | ...
 
 %-input.csv: %.csv
-	set -o pipefail; \
 	$P/sortcsv.py --key $(SORTKEY) <$< >$@.new
 	mv -f $@.new $@
 
-work/delta.csv: $A-input.csv $B-input.csv $P/match.py
+work/delta.csv: $A-input.csv $B-input.csv $P/diff.py
+	@echo "--- Computing delta ---"
 	set -o pipefail; \
-	$P/match.py --target $B-input.csv --pk taxonID < $A-input.csv \
+	$P/diff.py --target $B-input.csv --pk taxonID < $A-input.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
+	wc $@
 
 # something:
 # 	$P/scatter.py --dest work/delta < work/delta.csv
 
 work/round.csv: work/delta.csv
+	@echo "--- Applying delta ---"
 	set -o pipefail; \
 	$P/apply.py --delta $< --pk taxonID \
 	    < $A-input.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
-	echo Now, compare $@ to work/$B-input.csv
-	wc work/$B-input.csv $@
+	@echo "--- Comparing $@ to $B-input.csv ---"
+	wc $B-input.csv $@
 
 # Particular taxa files to use with the above
 
