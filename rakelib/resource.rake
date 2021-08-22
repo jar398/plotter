@@ -1,5 +1,6 @@
 require 'system'
 require 'resource'
+require 'claes'
 
 namespace :resource do
 
@@ -13,50 +14,38 @@ namespace :resource do
     get_trait_bank.get_resource(id.to_i)
   end
 
-  def get_repo_resource                  # utility
-    tb = get_trait_bank
-    rid = ENV['REPO_ID']
-    if rid
-      repo = tb.get_publishing_location.get_repository_location
-      repo.get_own_resource(rid.to_i)
-    else
-      puts "No REPO_ID, getting latest version of ID=#{ENV['ID']}"
-      get_resource.get_publishing_resource.get_repository_resource
-    end
-  end
-
   desc "Get resource DwCA from opendata (subtask)"
   task :fetch do
     get_resource.fetch
   end
 
-  desc "Print location of directory containing resource's unpacked DwCA"
+  desc "Print location of file containing Taxon rows"
+  task :taxa_path do
+    dwca = get_resource.get_dwca
+    paths = dwca.get_table(Claes.taxon).get_part_paths
+    # Maybe should err if more than one path?
+    raise("Too many paths") unless paths.size == 1
+    STDOUT.puts paths.join(" ")
+  end
+
+  desc "Print location of resource's taxon table directory containing resource's unpacked DwCA"
   task :dwca_directory do
     STDOUT.puts get_resource.dwca_directory
   end
 
   desc "Extract resource's page id map from repository, writing to file"
   task :map do
-    r = get_resource
-    r.get_page_id_map
-    path = r.page_id_map_path(r.get_dwca)
-    STDERR.puts "Page id map is at #{path}"
+    STDOUT.puts get_resource.page_id_map_path
   end
 
   desc "Path to where page id map will be (or is) stored"
   task :map_path do
-    r = get_resource
-    puts get_resource.page_id_map_path(r.get_dwca)
+    STDOUT.puts get_resource.page_id_map_path
   end
 
   desc "Show miscellaneous information about a resource"
   task :info do
     get_resource.show_info
-  end
-
-  desc "Show miscellaneous information about a repo resource version"
-  task :version_info do
-    get_repo_resource.show_repository_info
   end
 
   desc "List of resource's tables in CSV form"

@@ -102,7 +102,7 @@ class Table
     get_property_positions[prop]
   end
 
-  # List of paths: the the chunks, if split, or the single main csv
+  # List of paths: the chunks, if split, or the single main csv
   # file, if unsplit
 
   def get_part_paths
@@ -127,7 +127,7 @@ class Table
     response = Net::HTTP.get_response(URI(base_url + ".manifest.json"))
     if response.kind_of? Net::HTTPSuccess
       names = JSON.parse(response.body)
-      puts "#{names.size} chunks"
+      STDERR.puts "#{names.size} chunks"
       names.collect{|name| base_url + name}
     else
       [@url]
@@ -148,14 +148,14 @@ class Table
   end
 
   def open_csv_in(part_path = @path)
-    puts "Reading table at #{part_path}"
+    STDERR.puts "Reading table at #{part_path}"
     # But, see Resource.get_page_id_map and Paginator.
     quote_char = (@separator == "\t" ? "\x00" : '"')
 
     chunks_dir = part_path + ".chunks"
     if File.exist?(chunks_dir)
       chunk_paths = File.glob(File.join(chunks_dir, "*.csv"))
-      puts "Found #{chunk_paths.length} chunks"
+      STDERR.puts "Found #{chunk_paths.length} chunks"
       STDERR.puts "Chunked input not yet implemented: #{chunks_dir}"
     end
     if File.exist?(part_path)
@@ -196,7 +196,7 @@ class Table
   end
 
   def open_csv_out(part_path = @path)
-    puts "Writing table to #{part_path}"
+    STDERR.puts "Writing table to #{part_path}"
     csv = CSV.open(part_path, "w:UTF-8")
     header = get_header
     (0...@ignore_lines).each{|n| csv << header}
@@ -210,16 +210,16 @@ class Table
     FileUtils.mkdir_p(dir)
 
     first_line = `head -1 "#{@path}"`
-    puts "split: First line is #{first_line}"
+    STDERR.puts "split: First line is #{first_line}"
 
     `tail --lines=+2 "#{@path}" | split --lines=#{chunk_size} - "#{dir}"/`
     Dir.glob("#{dir}/??").each do |raw|
       dest = "#{raw}.csv"
-      puts "Adding header line to get #{dest}"
+      STDERR.puts "Adding header line to get #{dest}"
       `(echo "#{first_line}"; cat "#{raw}") >"#{dest}"`
       FileUtils.rm(raw)
     end
-    puts "split: Removing #{@path}"
+    STDERR.puts "split: Removing #{@path}"
     FileUtils.rm(@path)
     dir
   end

@@ -42,14 +42,13 @@ class GraphResource < Resource
       specifier = @config["dwca"]
       # Had better be stable !!!  Maybe use sha as key?
       key = File.basename(specifier)
+      @location.system.get_dwca(specifier, key, name)
     else
       opendata_lp_url = get_landing_page_url
       raise "No DwCA specified for #{id}(#{name}) in #{@location.name}" \
         unless opendata_lp_url
-      specifier = get_dwca_url(opendata_lp_url)
-      key = opendata_lp_url[-8..]
+      @location.system.get_dwca_via_landing_page(opendata_lp_url, name)
     end
-    @location.system.get_dwca(specifier, key, name)
   end
 
   # Specifier = one of dwca_path (local), dwca_url (remote opendata)
@@ -57,20 +56,6 @@ class GraphResource < Resource
   def get_landing_page_url
     @config["opendataUrl"] ||
       get_repository_resource.get_landing_page_url
-  end
-
-  # Adapted from harvester app/models/resource/from_open_data.rb.
-  # The HTML file is small; no need to cache it.
-  def get_dwca_url(opendata_lp_url)
-    raise "No DwCA landing page URL provided" unless opendata_lp_url
-    begin
-      raw = open(opendata_lp_url)
-    rescue Net::ReadTimeout => e
-      fail_with(e)
-    end
-    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
-    html = Nokogiri::HTML(raw)
-    html.css('p.muted a').first['href']
   end
 
   # ---------- Processing stage 2: map taxon ids occurring in the Dwca
@@ -98,14 +83,13 @@ class GraphResource < Resource
   #  in app/models/resource_harvester.rb
 
   def harvest_vernaculars
-    rr = get_repository_resource
-    vern_table = rr.get_dwca.get_table(Claes.vernacular_name)
+    vern_table = get_dwca.get_table(Claes.vernacular_name)
     if vern_table
-      rr.harvest_table(vern_table,
-                       [Property.page_id,
-                        Property.vernacular_string,
-                        Property.language_code,
-                        Property.is_preferred_name])
+      harvest_table(vern_table,
+                    [Property.page_id,
+                     Property.vernacular_string,
+                     Property.language_code,
+                     Property.is_preferred_name])
     end
   end
 
@@ -310,11 +294,11 @@ class GraphResource < Resource
   # ---------- Taxon (node) id to page id map
 
   def get_page_id_map
-    get_repository_resource.get_page_id_map(get_dwca)
+    get_repository_resource.get_page_id_map
   end
 
   def page_id_map_path
-    get_repository_resource.page_id_map_path(get_dwca)
+    get_repository_resource.page_id_map_path
   end
 
   # This method is applicable to repository resources

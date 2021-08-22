@@ -14,5 +14,6 @@ config/config2.yml
 config/*-publishing
 TAGS
 /work/
-__pychache__
-w
+/scratch/
+/deprecated/
+__pycache__

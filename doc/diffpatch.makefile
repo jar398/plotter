@@ -1,81 +1,102 @@
 # This is an example of the use of the pylib/ utilities.
-# It compares dynamic hierarchy (DH) version 0.9 with DH 1.1.
 
-# Run with: make -f doc/diffpatch.makefile
+# Run with: 
+#   make -f doc/diffpatch.makefile A=oldtable B=newtable
+# The tables here would be oldtable.csv and newtable.csv
+#
+# For example:
 
+#A=work/dh11-mapped
+#B=work/dh12
+
+A=work/dh11-mapped-mammals
+B=work/dh12-mammals
+
+all: work/delta.csv
+
+SHELL = /usr/bin/bash
 P = pylib
 
-# Compare DH 0.9 to DH 1.1.
-# Resources ids in production repository are 1 and 817, or
-# 1 and 724 in production publishing.
+# Columns managed by diff/patch
+MANAGED="taxonID,canonicalName,scientificName,taxonRank,source,taxonomicStatus,datasetID,EOLid"
+SORTKEY="taxonID"
 
-A_REPO_ID = 1
-B_REPO_ID = 817
+# Formerly: $P/project.py --keep $(MANAGED) <$< | ...
 
-DHA := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(A_REPO_ID))
-DHB := $(shell rake resource:dwca_directory CONF=prod REPO_ID=$(B_REPO_ID))
+%-input.csv: %.csv
+	set -o pipefail; \
+	$P/sortcsv.py --key $(SORTKEY) <$< >$@.new
+	mv -f $@.new $@
 
-DHA_TABLE = $(DHA)/taxa.txt
-DHB_TABLE = $(DHB)/taxon.tab
-DHA_MAP = ~/.plotter_workspace/prod_repo/resources/$(A_REPO_ID)/page_id_map.csv
-DHB_MAP = ~/.plotter_workspace/prod_repo/resources/$(B_REPO_ID)/page_id_map.csv
-
-
-all: work/diff-dha-dhb.csv
-
-# Smoke test
-smoke:
-	@echo $(DHA) 
-	@echo $(DHB)
-
-fetch: $(DHA_TABLE) $(DHB_TABLE)
-
-work/diff-dha-dhb.csv: work/dha_accepted.csv work/dhb_accepted.csv $P/diff.py
-	$P/diff.py --key=EOLid < work/dha_accepted.csv work/dhb_accepted.csv > $@.new
-	mv $@.new $@
-
-COLUMNS_TO_KEEP = \
-  EOLid,taxonID,parentNameUsageID,acceptedNameUsageID,taxonRank,canonicalName,scientificName,source,landmark_status
-ACC_COL_DROP = \
-  taxonID,parentNameUsageID,acceptedEOLid
-SYN_COL_KEEP = \
-  taxonID,taxonRank,canonicalName,scientificName,acceptedEOLid
-
-CODE = $P/start.py $P/shunt.py $P/project.py $P/map.py $P/prepare.py
-
-work/dha_accepted.csv: $(DHA_TABLE) $(DHA_MAP) $(CODE)
-	mkdir -p work
-	$P/start.py --input $(DHA_TABLE) \
-	| $P/project.py --keep="$(COLUMNS_TO_KEEP)" \
-	| $P/map.py --mapping $(DHA_MAP) \
-	| $P/shunt.py --synonyms work/dha_shunt.csv \
-	| $P/project.py --drop="$(ACC_COL_DROP)" \
-	| $P/prepare.py --key=EOLid \
+work/delta.csv: $A-input.csv $B-input.csv $P/match.py
+	set -o pipefail; \
+	$P/match.py --target $B-input.csv --pk taxonID < $A-input.csv \
+	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
-	$P/project.py --keep="$(SYN_COL_KEEP)" < work/dha_shunt.csv \
-	> work/dha_synonyms.csv.new
-	mv $@.new $@
-	mv work/dha_synonyms.csv.new work/dha_synonyms.csv
+	mv -f $@.new $@
 
-work/dhb_accepted.csv: $(DHB_TABLE) $(DHB_MAP) $(CODE)
-	mkdir -p work
-	$P/start.py --input $(DHB_TABLE) --clean \
-	| $P/project.py --keep="$(COLUMNS_TO_KEEP)" \
-	| $P/map.py --mapping $(DHB_MAP) \
-	| $P/shunt.py --synonyms work/dhb_shunt.csv \
-	| $P/project.py --drop="$(ACC_COL_DROP)" \
-	| $P/prepare.py --key=EOLid \
+# something:
+# 	$P/scatter.py --dest work/delta < work/delta.csv
+
+work/round.csv: work/delta.csv
+	set -o pipefail; \
+	$P/apply.py --delta $< --pk taxonID \
+	    < $A-input.csv \
+	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
-	$P/project.py --keep="$(SYN_COL_KEEP)" < work/dhb_shunt.csv \
-	> work/dhb_synonyms.csv.new
-	mv $@.new $@
-	mv work/dhb_synonyms.csv.new work/dhb_synonyms.csv
+	mv -f $@.new $@
+	echo Now, compare $@ to work/$B-input.csv
+	wc work/$B-input.csv $@
 
-$(DHA_MAP): 
-	rake resource:map CONF=prod REPO_ID=$(A_REPO_ID)
-$(DHB_MAP):
-	rake resource:map CONF=prod REPO_ID=$(B_REPO_ID)
-$(DHA_TABLE):
-	rake resource:fetch CONF=prod REPO_ID=$(A_REPO_ID)
-$(DHB_TABLE):
-	rake resource:fetch CONF=prod REPO_ID=$(B_REPO_ID)
+# Particular taxa files to use with the above
+
+inputs: dh work/dh09-mapped.csv work/dh11-mapped.csv
+dh: work/dh09.csv work/dh11.csv work/dh12.csv
+ASSEMBLY=prod
+
+work/dh09.id:
+	echo 1 >$@
+work/dh11.id:
+	echo 724 > $@
+
+# about half a minute for DH 1.1
+
+work/%.csv: work/%.id $P/start.py
+	mkdir -p work
+	$P/start.py --input `rake resource:taxa_path \
+	       	          CONF=$(ASSEMBLY) \
+		          ID=$$(cat $<)` \
+		    --pk taxonID \
+	        > $@.new
+	mv -f $@.new $@
+
+DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/02037fde-cc69-4f03-94b5-65591c6e7b3b"
+
+work/dh12.csv: $P/start.py
+	mkdir -p work
+	$P/start.py --input `rake dwca:taxa_path OPENDATA=$(DH12_LP)` \
+		    --pk taxonID \
+	       > $@.new
+	mv -f $@.new $@
+
+work/%-map.csv: work/%.id
+	ln -sf `rake resource:map CONF=$(ASSEMBLY) ID=$$(cat $<)` \
+	       $@
+
+# $< = first prerequisite
+
+work/%-mapped.csv: work/%.csv work/%-map.csv $P/map.py
+	$P/map.py --mapping $(<:.csv=-map.csv) \
+		  < $< \
+		  > $@.new
+	mv -f $@.new $@
+
+# in1=./deprecated/work/1-mam.csv
+# in2=./deprecated/work/724-mam.csv
+
+# Mammals = page id 1642, usage id EOL-000000627548
+MAMMALIA=EOL-000000627548
+
+work/%-mammals.csv: work/%.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
+	mv -f $@.new $@

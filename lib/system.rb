@@ -66,7 +66,7 @@ class System
       elsif specifier.include?(".json")    # This case might not be needed
         JSON.parse(strng)
       else
-        puts "Specifier is not .yaml or .json: #{specifier}"
+        STDERR.puts "Specifier is not .yaml or .json: #{specifier}"
         nil
       end
     end
@@ -123,6 +123,11 @@ class System
 
   # ---------- DwCA stuff
 
+  def get_dwca_via_landing_page(lp_url, name = "Opendata resource")
+    specifier = get_dwca_url(lp_url)
+    dwca = get_dwca(specifier, lp_url[-8..], name)
+  end
+
   # If you don't have an opendata landing page (which provides a
   # uuid), just generate a random number (in hex)...?
   def get_dwca(specifier, key, resource_name = nil)
@@ -137,6 +142,20 @@ class System
                      "id": key})
     @dwcas[key] = dwca
     dwca
+  end
+
+  # Adapted from harvester app/models/resource/from_open_data.rb.
+  # The HTML file is small; no need to cache it.
+  def get_dwca_url(opendata_lp_url)
+    raise "No DwCA landing page URL provided" unless opendata_lp_url
+    begin
+      raw = open(opendata_lp_url)
+    rescue Net::ReadTimeout => e
+      fail_with(e)
+    end
+    fail_with(Exception.new('GET of URL returned empty result.')) if raw.nil?
+    html = Nokogiri::HTML(raw)
+    html.css('p.muted a').first['href']
   end
 
   # ----------------------------------------------------------------------
@@ -189,7 +208,7 @@ class System
     response = Net::HTTP.get_response(URI(base_url + ".manifest.json"))
     if response.kind_of? Net::HTTPSuccess
       names = JSON.parse(response.body)
-      puts "#{names.size} chunks"
+      STDERR.puts "#{names.size} chunks"
       names.collect{|name| base_url + name}
     else
       STDERR.puts "No manifest for #{base_url}"

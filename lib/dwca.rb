@@ -64,7 +64,7 @@ class Dwca
     dir = get_unpacked_loc
     meta = File.join(dir, "meta.xml")
     if File.exists?(meta)
-      STDERR.puts "Found #{meta} so assuming resource is already unpacked"
+      STDERR.puts "Found #{meta} so assuming DwCA is already unpacked"
     else
       # Files aren't there.  Ensure that the archive is present locally,
       # then unpack it.
@@ -119,13 +119,13 @@ class Dwca
     end
     source = tuck(temp)
     if File.exists?(dir)
-      puts "Removing #{dir}"
+      STDERR.puts "Removing #{dir}"
       `rm -rf #{dir}` 
     end
-    puts "Moving #{source} to #{dir}"
+    STDERR.puts "Moving #{source} to #{dir}"
     FileUtils.mv(source, dir)
     if File.exists?(temp)
-      puts "Removing #{temp}"
+      STDERR.puts "Removing #{temp}"
       `rm -rf #{temp}`
     end
     dir
@@ -164,7 +164,7 @@ class Dwca
     return @tables if @tables
     ensure_unpacked
     path = File.join(get_unpacked_loc, "meta.xml")
-    puts "Processing #{path}"
+    STDERR.puts "Processing #{path}"
     @tables = from_xml(path)
     @tables
   end
@@ -174,6 +174,7 @@ class Dwca
     tables = get_tables
     probe = tables[claes]
     return probe if probe
+    STDERR.puts("Tables: #{tables}")
     raise("No table for class #{claes.name}.")
   end
 
@@ -182,7 +183,12 @@ class Dwca
   # Adapted from harvester app/models/resource/from_meta_xml.rb self.analyze
   def from_xml(filename)
     doc = File.open(filename) { |f| Nokogiri::XML(f) }
-    tables = doc.css('archive table').collect do |table_element|
+    table_elements = doc.css('archive table')
+    table_elements = doc.css('archive core') \
+      unless table_elements.size > 0
+    # TBD: deal with extensions, <id> elements, etc
+    raise "No tables specified in #{filename}" unless table_elements.size > 0
+    tables = table_elements.collect do |table_element|
       row_type = table_element['rowType']    # a URI
       basename = table_element.css("location").first.text
       positions = parse_fields(table_element)     # Property -> position
@@ -196,6 +202,7 @@ class Dwca
                 ignore_lines: (ig ? ig.to_i : 0),
                 claes: Claes.get(row_type))
     end
+    STDERR.puts("#{tables.size} tables")
     claes_to_table = {}
     # TBD: Complain if a claes has multiple tables???
     tables.each {|table| claes_to_table[table.claes] = table}
