@@ -114,8 +114,13 @@ work/%-mapped.csv: work/%.csv work/%-map.csv $P/map.py
 # in2=./deprecated/work/724-mam.csv
 
 # Mammals = page id 1642, usage id EOL-000000627548
-MAMMALIA=EOL-000000627548
+MAMMALIA11=EOL-000000627548
 
 work/%-mammals.csv: work/%.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
+	$P/subset.py --hierarchy $< --root $(MAMMALIA11) < $< > $@.new
+	mv -f $@.new $@
+
+MAMMALIA09=-168130
+work/dh09-mapped-mammals.csv: work/dh09-mapped.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(MAMMALIA09) < $< > $@.new
 	mv -f $@.new $@
