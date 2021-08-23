@@ -13,38 +13,50 @@ B=work/dh12-mammals
 # 0.9 / 1.1
 # time make -f doc/diffpatch.makefile A=work/dh09-mapped B=work/dh11
 
-# 1.1 / 1.2
-# time make -f doc/diffpatch.makefile A=work/dh11-mapped B=work/dh12 
+# 0.9 / 1.1 mammals only
+# time make -f doc/diffpatch.makefile A=work/dh09-mapped-mammals B=work/dh11-mammals
 
-all: work/round.csv
+# 1.1 / 1.2
+# time make -f doc/diffpatch.makefile A=work/dh11-mapped B=work/dh12
+
+DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
+ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
+
+all: $(ROUND)
 
 SHELL = /usr/bin/bash
 P = pylib
 
 # Columns that are managed by diff/patch
-MANAGED="taxonID,canonicalName,scientificName,taxonRank,source,taxonomicStatus,datasetID,EOLid"
 SORTKEY="taxonID"
 
-# Formerly: $P/project.py --keep $(MANAGED) <$< | ...
+# Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 
 %-input.csv: %.csv
 	$P/sortcsv.py --key $(SORTKEY) <$< >$@.new
 	mv -f $@.new $@
 
-work/delta.csv: $A-input.csv $B-input.csv $P/diff.py
-	@echo "--- Computing delta ---"
+INDEX=taxonID,EOLid,scientificName,canonicalName
+MANAGE=$(INDEX),taxonRank,taxonomicStatus,datasetID
+
+$(DELTA): $A-input.csv $B-input.csv $P/diff.py
+	@echo
+	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/diff.py --target $B-input.csv --pk taxonID < $A-input.csv \
+	$P/diff.py --target $B-input.csv --pk taxonID \
+		   --index $(INDEX) --manage $(MANAGE) \
+		   < $A-input.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
 	wc $@
 
 # something:
-# 	$P/scatter.py --dest work/delta < work/delta.csv
+# 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
 
-work/round.csv: work/delta.csv
-	@echo "--- Applying delta ---"
+$(ROUND): $(DELTA)
+	@echo
+	@echo "--- APPLYING DELTA ---"
 	set -o pipefail; \
 	$P/apply.py --delta $< --pk taxonID \
 	    < $A-input.csv \
@@ -54,6 +66,7 @@ work/round.csv: work/delta.csv
 	@echo "--- Comparing $@ to $B-input.csv ---"
 	wc $B-input.csv $@
 
+# ----------------------------------------------------------------------
 # Particular taxa files to use with the above
 
 inputs: dh work/dh09-mapped.csv work/dh11-mapped.csv
