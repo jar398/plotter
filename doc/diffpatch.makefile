@@ -31,21 +31,18 @@ P = pylib
 SORTKEY="taxonID"
 
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
-
-%-input.csv: %.csv
-	$P/sortcsv.py --key $(SORTKEY) <$< >$@.new
-	mv -f $@.new $@
+# and	    $P/sortcsv.py --key $(SORTKEY) <$< >$@.new
 
 INDEX=taxonID,EOLid,scientificName,canonicalName
 MANAGE=$(INDEX),taxonRank,taxonomicStatus,datasetID
 
-$(DELTA): $A-input.csv $B-input.csv $P/diff.py
+$(DELTA): $A.csv $B.csv $P/diff.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/diff.py --target $B-input.csv --pk taxonID \
+	$P/diff.py --target $B.csv --pk taxonID \
 		   --index $(INDEX) --manage $(MANAGE) \
-		   < $A-input.csv \
+		   < $A.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
@@ -59,12 +56,12 @@ $(ROUND): $(DELTA)
 	@echo "--- APPLYING DELTA ---"
 	set -o pipefail; \
 	$P/apply.py --delta $< --pk taxonID \
-	    < $A-input.csv \
+	    < $A.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
-	@echo "--- Comparing $@ to $B-input.csv ---"
-	wc $B-input.csv $@
+	@echo "--- Comparing $@ to $B.csv ---"
+	wc $B.csv $@
 
 # ----------------------------------------------------------------------
 # Particular taxa files to use with the above
