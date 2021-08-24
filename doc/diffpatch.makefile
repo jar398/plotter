@@ -7,17 +7,19 @@
 # For example:
 
 # 1.1 / 1.2 mammals only 
-A=work/dh11-mapped-mammals
+A=work/dh11-mammals
 B=work/dh12-mammals
 
 # 0.9 / 1.1
-# time make -f doc/diffpatch.makefile A=work/dh09-mapped B=work/dh11
+# time make -f doc/diffpatch.makefile A=work/dh09 B=work/dh11
 
 # 0.9 / 1.1 mammals only
-# time make -f doc/diffpatch.makefile A=work/dh09-mapped-mammals B=work/dh11-mammals
+# time make -f doc/diffpatch.makefile A=work/dh09-mammals B=work/dh11-mammals
 
 # 1.1 / 1.2
-# time make -f doc/diffpatch.makefile A=work/dh11-mapped B=work/dh12
+# time make -f doc/diffpatch.makefile A=work/dh11 B=work/dh12
+
+# $< = first prerequisite
 
 DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
 ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
@@ -28,13 +30,13 @@ SHELL = /usr/bin/bash
 P = pylib
 
 # Columns that are managed by diff/patch
-SORTKEY="taxonID"
+SORTKEY=taxonID
 
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 # and	    $P/sortcsv.py --key $(SORTKEY) <$< >$@.new
 
 INDEX=taxonID,EOLid,scientificName,canonicalName
-MANAGE=$(INDEX),taxonRank,taxonomicStatus,datasetID
+MANAGE=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/diff.py
 	@echo
@@ -43,6 +45,7 @@ $(DELTA): $A.csv $B.csv $P/diff.py
 	$P/diff.py --target $B.csv --pk taxonID \
 		   --index $(INDEX) --manage $(MANAGE) \
 		   < $A.csv \
+	| $P/project.py --keep mode,new_pk,$(MANAGE) \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
@@ -51,22 +54,26 @@ $(DELTA): $A.csv $B.csv $P/diff.py
 # something:
 # 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
 
-$(ROUND): $(DELTA)
+$(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv
 	@echo
 	@echo "--- APPLYING DELTA ---"
 	set -o pipefail; \
 	$P/apply.py --delta $< --pk taxonID \
-	    < $A.csv \
+	    < $A-narrow.csv \
 	| $P/sortcsv.py --key $(SORTKEY) \
 	> $@.new
 	mv -f $@.new $@
 	@echo "--- Comparing $@ to $B.csv ---"
-	wc $B.csv $@
+	wc $B-narrow.csv $@
+
+%-narrow.csv: %.csv
+	$P/project.py --keep $(MANAGE) <$< >$@.new
+	mv -f $@.new $@
 
 # ----------------------------------------------------------------------
 # Particular taxa files to use with the above
 
-inputs: dh work/dh09-mapped.csv work/dh11-mapped.csv
+inputs: dh work/dh09.csv work/dh11.csv
 dh: work/dh09.csv work/dh11.csv work/dh12.csv
 ASSEMBLY=prod
 
@@ -83,7 +90,7 @@ work/%.csv: work/%.id $P/start.py
 	       	          CONF=$(ASSEMBLY) \
 		          ID=$$(cat $<)` \
 		    --pk taxonID \
-	        > $@.new
+	| $P/sortcsv.py --key $(SORTKEY) > $@.new
 	mv -f $@.new $@
 
 DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/02037fde-cc69-4f03-94b5-65591c6e7b3b"
@@ -93,18 +100,6 @@ work/dh12.csv: $P/start.py
 	$P/start.py --input `rake dwca:taxa_path OPENDATA=$(DH12_LP)` \
 		    --pk taxonID \
 	       > $@.new
-	mv -f $@.new $@
-
-work/%-map.csv: work/%.id
-	ln -sf `rake resource:map CONF=$(ASSEMBLY) ID=$$(cat $<)` \
-	       $@
-
-# $< = first prerequisite
-
-work/%-mapped.csv: work/%.csv work/%-map.csv $P/map.py
-	$P/map.py --mapping $(<:.csv=-map.csv) \
-		  < $< \
-		  > $@.new
 	mv -f $@.new $@
 
 # in1=./deprecated/work/1-mam.csv
@@ -118,6 +113,32 @@ work/%-mammals.csv: work/%.csv $P/subset.py
 	mv -f $@.new $@
 
 MAMMALIA09=-168130
-work/dh09-mapped-mammals.csv: work/dh09-mapped.csv $P/subset.py
+work/dh09-mammals.csv: work/dh09.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA09) < $< > $@.new
 	mv -f $@.new $@
+
+work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy.py
+	$P/hierarchy.py --mapping work/dh11-map.csv \
+		  < $< \
+		  > $@.new
+	mv -f $@.new $@
+
+work/dh11-hier.csv: work/dh11.csv work/dh11-map.csv $P/hierarchy.py
+	$P/hierarchy.py --mapping work/dh11-map.csv \
+			--keep landmark_status \
+		  < $< \
+		  > $@.new
+	mv -f $@.new $@
+
+work/%-map.csv: work/%.id
+	cp `rake resource:map CONF=$(ASSEMBLY) ID=$$(cat $<)` $@.new
+	mv -f $@.new $@
+
+# Deprecated ... ?
+
+work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
+	$P/idmap.py --mapping $(<:.csv=-map.csv) \
+		  < $< \
+		  > $@.new
+	mv -f $@.new $@
+
