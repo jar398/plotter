@@ -23,6 +23,9 @@ B=work/dh12-mammals
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
 #   time make -f doc/diffpatch.makefile A=work/dh09-hier B=work/dh11-hier
 
+# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
+#   time make -f doc/diffpatch.makefile A=work/dh11-hier B=work/dh12-hier
+
 
 # $< = first prerequisite
 
@@ -141,6 +144,9 @@ work/%-hier.csv: work/%.csv work/%-map.csv $P/hierarchy.py
 work/%-map.csv: work/%.id
 	cp `rake resource:map CONF=$(ASSEMBLY) ID=$$(cat $<)` $@.new
 	mv -f $@.new $@
+
+work/dh12-map.csv: work/dh11-map.csv
+	cp $< $@
 
 # Deprecated ... ?
 
