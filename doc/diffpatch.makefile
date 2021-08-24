@@ -19,6 +19,11 @@ B=work/dh12-mammals
 # 1.1 / 1.2
 # time make -f doc/diffpatch.makefile A=work/dh11 B=work/dh12
 
+# Hierarchies
+# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
+#   time make -f doc/diffpatch.makefile A=work/dh09-hier B=work/dh11-hier
+
+
 # $< = first prerequisite
 
 DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
@@ -30,23 +35,25 @@ SHELL = /usr/bin/bash
 P = pylib
 
 # Columns that are managed by diff/patch
-SORTKEY=taxonID
+USAGE_KEY = taxonID
+HIER_KEY = EOLid
+DELTA_KEY ?= $(USAGE_KEY)
 
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
-# and	    $P/sortcsv.py --key $(SORTKEY) <$< >$@.new
+# and	    $P/sortcsv.py --key $(USAGE_KEY) <$< >$@.new
 
-INDEX=taxonID,EOLid,scientificName,canonicalName
-MANAGE=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,datasetID,source
+INDEX ?= taxonID,EOLid,scientificName,canonicalName
+MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/diff.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/diff.py --target $B.csv --pk taxonID \
+	$P/diff.py --target $B.csv --pk $(DELTA_KEY) \
 		   --index $(INDEX) --manage $(MANAGE) \
 		   < $A.csv \
 	| $P/project.py --keep mode,new_pk,$(MANAGE) \
-	| $P/sortcsv.py --key $(SORTKEY) \
+	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	mv -f $@.new $@
 	wc $@
@@ -58,9 +65,9 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv
 	@echo
 	@echo "--- APPLYING DELTA ---"
 	set -o pipefail; \
-	$P/apply.py --delta $< --pk taxonID \
+	$P/apply.py --delta $< --pk $(DELTA_KEY) \
 	    < $A-narrow.csv \
-	| $P/sortcsv.py --key $(SORTKEY) \
+	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	mv -f $@.new $@
 	@echo "--- Comparing $@ to $B.csv ---"
@@ -89,8 +96,8 @@ work/%.csv: work/%.id $P/start.py
 	$P/start.py --input `rake resource:taxa_path \
 	       	          CONF=$(ASSEMBLY) \
 		          ID=$$(cat $<)` \
-		    --pk taxonID \
-	| $P/sortcsv.py --key $(SORTKEY) > $@.new
+		    --pk $(USAGE_KEY) \
+	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	mv -f $@.new $@
 
 DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/02037fde-cc69-4f03-94b5-65591c6e7b3b"
@@ -123,11 +130,12 @@ work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy
 		  > $@.new
 	mv -f $@.new $@
 
-work/dh11-hier.csv: work/dh11.csv work/dh11-map.csv $P/hierarchy.py
-	$P/hierarchy.py --mapping work/dh11-map.csv \
+work/%-hier.csv: work/%.csv work/%-map.csv $P/hierarchy.py
+	set -o pipefail; \
+	$P/hierarchy.py --mapping $(<:.csv=-map.csv) \
 			--keep landmark_status \
 		  < $< \
-		  > $@.new
+	| $P/sortcsv.py --key $(HIER_KEY) > $@.new
 	mv -f $@.new $@
 
 work/%-map.csv: work/%.id
@@ -138,7 +146,5 @@ work/%-map.csv: work/%.id
 
 work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(<:.csv=-map.csv) \
-		  < $< \
-		  > $@.new
+		  < $< > $@.new
 	mv -f $@.new $@
-
