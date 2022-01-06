@@ -64,7 +64,7 @@ class Dwca
     dir = get_unpacked_loc
     meta = File.join(dir, "meta.xml")
     if File.exists?(meta)
-      STDERR.puts "Found #{meta} so assuming DwCA is already unpacked"
+      STDERR.puts "# Found #{meta} so assuming DwCA is already unpacked"
     else
       # Files aren't there.  Ensure that the archive is present locally,
       # then unpack it.
@@ -164,7 +164,7 @@ class Dwca
     return @tables if @tables
     ensure_unpacked
     path = File.join(get_unpacked_loc, "meta.xml")
-    STDERR.puts "Processing #{path}"
+    STDERR.puts "# Processing #{path}"
     @tables = from_xml(path)
     @tables
   end
@@ -202,7 +202,7 @@ class Dwca
                 ignore_lines: (ig ? ig.to_i : 0),
                 claes: Claes.get(row_type))
     end
-    STDERR.puts("#{tables.size} tables")
+    STDERR.puts("#  ... #{tables.size} tables")
     claes_to_table = {}
     # TBD: Complain if a claes has multiple tables???
     tables.each {|table| claes_to_table[table.claes] = table}

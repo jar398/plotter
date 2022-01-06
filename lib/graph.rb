@@ -68,7 +68,7 @@ class Graph
       rescue Errno::ECONNREFUSED => e
         retr = true; loser = e
       rescue Faraday::TimeoutError => e
-        STDERR.puts("Read timeout is #{read_timeout}")
+        STDERR.puts("Read timeout is #{Graph.read_timeout}")
         retr = true; loser = e
       rescue Net::ReadTimeout
         STDERR.puts("Net:: timeout is default (60s??)")
@@ -116,7 +116,7 @@ class Graph
       headers['Content-type'] = "application/json"
       body = JSON.generate({'statements': [{"statement": cql}]})
       response = conn.post(uri, body = body, headers = headers) do |req|
-        req.options.timeout = read_timeout
+        req.options.timeout = Graph.read_timeout
         req.options.open_timeout = open_timeout
       end
       code = response.status
@@ -163,7 +163,7 @@ class Graph
       # no body
       # Do post or get depending on command???
       response = conn.post(uri, body = "query=#{escaped}", headers = headers) do |req|
-        req.options.timeout = read_timeout
+        req.options.timeout = Graph.read_timeout
         req.options.open_timeout = open_timeout
       end
       code = response.status

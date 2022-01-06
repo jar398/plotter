@@ -99,4 +99,8 @@ class TraitBank < Location
     STDERR.puts("Merged #{count} resources from #{url}")
   end
 
+  def sync_usages
+    load_usage_table
+  end
+
 end

@@ -125,7 +125,7 @@ class Location
     end
     if obj.key?("resources")
       records = obj["resources"]
-      STDERR.puts "# Read #{records.length} resource records"
+      # STDERR.puts "# Read #{records.length} resource records"
       records
     else
       STDERR.puts "** No resource records"
