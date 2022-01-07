@@ -15,6 +15,11 @@ namespace :paint do
     id = ENV['ID'] || testing_resource
     id = id.to_i
     tb = System.system.get_trait_bank(tag)
+    if ENV.key?('CHUNK')
+      chunksize = ENV['CHUNK'].to_i    # possibly nil
+    else
+      chunksize = nil
+    end
     resource = tb.get_resource(id)
     raise "No resource #{id} in #{tag}" unless resource
     puts "Resource #{id} on #{tag} is understood as '#{resource.name}'"

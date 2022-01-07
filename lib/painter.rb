@@ -44,9 +44,9 @@ class Painter
 
   LIMIT = 1000000
 
-  def initialize(resource, trait_bank)
+  def initialize(resource, trait_bank, chunksize=10000)
     @resource = resource     # A graphdb resource
-    @chunksize = 10000
+    @chunksize = chunksize
     @trait_bank = trait_bank
   end
 
