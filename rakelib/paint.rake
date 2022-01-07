@@ -18,7 +18,7 @@ namespace :paint do
     if ENV.key?('CHUNK')
       chunksize = ENV['CHUNK'].to_i    # possibly nil
     else
-      chunksize = nil
+      chunksize = 10000
     end
     resource = tb.get_resource(id)
     raise "No resource #{id} in #{tag}" unless resource
