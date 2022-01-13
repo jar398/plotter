@@ -23,7 +23,7 @@ namespace :paint do
     resource = tb.get_resource(id)
     raise "No resource #{id} in #{tag}" unless resource
     puts "Resource #{id} on #{tag} is understood as '#{resource.name}'"
-    Painter.new(resource, tb)
+    Painter.new(resource, tb, chunksize)
   end
 
   # Ordinary tasks
