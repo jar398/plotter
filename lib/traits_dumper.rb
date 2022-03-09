@@ -105,7 +105,7 @@ class TraitsDumper
 
   # Write a zip file containing a specified set of files.
   def write_zip(paths, dest)
-    File.delete(dest) if File.exists?(dest)
+    File.delete(dest) if File.exist?(dest)
     Zip::File.open(dest, Zip::File::CREATE) do |zipfile|
       directory = "trait_bank"
       zipfile.mkdir(directory)

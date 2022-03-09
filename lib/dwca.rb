@@ -19,11 +19,11 @@ class Dwca
   end
 
   def get_dwca_workspace
-    unless File.exists?(@dwca_workspace)
+    unless File.exist?(@dwca_workspace)
       FileUtils.mkdir_p(@dwca_workspace)
     end
     path = File.join(@dwca_workspace, "properties.json")
-    unless File.exists?(path)    # ??
+    unless File.exist?(path)    # ??
       File.open(path, 'w') { |file| file.write(JSON.pretty_generate(@properties)) }
     end
     @dwca_workspace
@@ -43,9 +43,9 @@ class Dwca
       path = File.join(ws, "dwca.#{ext}")
     else
       zip = File.join(ws, "dwca.zip")
-      return zip if File.exists?(zip)
+      return zip if File.exist?(zip)
       tgz = File.join(ws, "dwca.tgz")
-      return zip if File.exists?(tgz)
+      return zip if File.exist?(tgz)
       raise "No DWCA_PATH or DWCA_URL was specified / present"
     end
   end
@@ -63,7 +63,7 @@ class Dwca
   def ensure_unpacked
     dir = get_unpacked_loc
     meta = File.join(dir, "meta.xml")
-    if File.exists?(meta)
+    if File.exist?(meta)
       STDERR.puts "# Found #{meta} so assuming DwCA is already unpacked"
     else
       # Files aren't there.  Ensure that the archive is present locally,
@@ -93,7 +93,7 @@ class Dwca
     # Reuse previous file only if URL matches
     file_holding_url = File.join(get_dwca_workspace, "dwca_url")
     valid = false
-    if File.exists?(file_holding_url)
+    if File.exist?(file_holding_url)
       old_url = File.read(file_holding_url)
       if old_url == dwca_url
         valid = true 
@@ -118,13 +118,13 @@ class Dwca
       raise("Unknown file extension: #{basename}#{ext}")
     end
     source = tuck(temp)
-    if File.exists?(dir)
+    if File.exist?(dir)
       STDERR.puts "Removing #{dir}"
       `rm -rf #{dir}` 
     end
     STDERR.puts "Moving #{source} to #{dir}"
     FileUtils.mv(source, dir)
-    if File.exists?(temp)
+    if File.exist?(temp)
       STDERR.puts "Removing #{temp}"
       `rm -rf #{temp}`
     end

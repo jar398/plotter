@@ -10,7 +10,7 @@ class Concordance
   def refresh
     path = @system.get_concordance.get_path
     unified = {}      # maps name to resource record
-    if File.exists?(path)
+    if File.exist?(path)
       blob = JSON.parse(File.read(path))
       blob['resources'].each {|r| unified[r['name']] = r}
     else

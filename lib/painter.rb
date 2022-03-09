@@ -40,14 +40,18 @@ require 'open3'
 require 'paginator'
 require 'property'
 
+CHUNKIFY = true
+CHUNKSIZE = 10000
+
 class Painter
 
   LIMIT = 1000000
 
-  def initialize(resource, trait_bank, chunksize=10000)
+  def initialize(resource, trait_bank, chunksize=CHUNKSIZE)
     @resource = resource     # A graphdb resource
     @chunksize = chunksize
     @trait_bank = trait_bank
+    @system = resource.location.system
   end
 
   def get_graph
@@ -82,6 +86,7 @@ class Painter
   end
 
   # Remove all of a resource's inferred trait assertions
+  # a.k.a. 'clean'
 
   def erase(resource = @resource)
     r = run_query("MATCH (:Resource {resource_id: #{get_id}})<-[:supplier]-
@@ -191,8 +196,12 @@ class Painter
     end
   end
 
-  def inf_dir    # relative dir for assert and retract files
+  def paint_dir    # relative dir for assert and retract files
     @resource.relative_path("inferences")
+  end
+
+  def inf_dir    # relative dir for assert and retract files
+    @resource.relative_path("inferences/inf")
   end
 
   # Dry run - find all inferences that would be made by branch
@@ -244,21 +253,27 @@ class Painter
 
     net_path = @resource.workspace_path(File.join(inf_dir, "inferences.csv"))
 
-    # Write net inferences as single CSV (optional)
-    # TBD: Use Table class...
-    STDERR.puts("Net: #{inferences.size} inferences")
-    CSV.open(net_path, "wb:UTF-8") do |csv|
-      STDERR.puts("Writing #{net_path}")
-      csv << ["page_id", "name", "trait", "measurement", "object_name"]
-      inferences.each do |key, info|
-        (page_id, trait) = key
-        (name, value, ovalue) = info
-        csv << [page_id, name, trait, value, ovalue]
-      end
-    end
+    if CHUNKIFY
 
-    # Write net inferences as a set of chunked CSV files (see merge)
-    explode(inferences, net_path)
+      # Write net inferences as a set of chunked CSV files (see merge)
+      explode(inferences, net_path)
+
+    else
+
+      # Write net inferences as single CSV (optional)
+      # TBD: Use Table class...
+      STDERR.puts("Net: #{inferences.size} inferences")
+      CSV.open(net_path, "wb:UTF-8") do |csv|
+        STDERR.puts("Writing #{net_path}")
+        csv << ["page_id", "name", "trait", "measurement", "object_name"]
+        inferences.each do |key, info|
+          (page_id, trait) = key
+          (name, value, ovalue) = info
+          csv << [page_id, name, trait, value, ovalue]
+        end
+      end
+
+    end
 
   end
 
@@ -282,6 +297,7 @@ class Painter
         end
       end
     end
+    @system.prepare_manifests(dir_path)
   end
 
   # Run the two cypher commands (RETURN for "infer" operation; MERGE
@@ -304,7 +320,7 @@ class Painter
     assert_path = 
       run_chunked_query(query,
                         @chunksize,
-                        @resource.workspace_path(File.join(inf_dir, "assert.csv")))
+                        @resource.workspace_path(File.join(paint_dir, "assert.csv")))
     return unless assert_path
 
     # Erase inferred traits from stop point to descendants.
@@ -322,7 +338,7 @@ class Painter
     retract_path =
       run_chunked_query(query,
                         @chunksize,
-                        @resource.workspace_path(File.join(inf_dir, "retract.csv")),
+                        @resource.workspace_path(File.join(paint_dir, "retract.csv")),
                         skipping: skipping)
     [assert_path, retract_path]
   end
@@ -330,7 +346,7 @@ class Painter
   # For staging area location and structure see ../README.md
 
   def stage
-    @resource.location.system.stage(File.join(inf_dir, "inferences.csv"))
+    @system.stage(inf_dir)
   end
 
   # Assumes resource is staged

@@ -113,7 +113,7 @@ class Location
       # when_cached = workspace_path("resource_records.csv")
       when_cached = @config["resource_records"]    # maybe nil
       STDERR.puts "# Resource records when cached would be at #{when_cached}"
-      unless File.exists?(when_cached)
+      unless File.exist?(when_cached)
         url = "#{site}resources.json?per_page=100000"
         STDERR.puts "# Reading #{url}"
         System.copy_from_internet(url, when_cached)

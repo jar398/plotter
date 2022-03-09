@@ -65,7 +65,7 @@ The following commands are supported
 * `publish` - ask neo4j to read inferred trait assertions from file and
    add them to the graphdb
 * `paint` = `prepare` + `publish`
-* `clean` - remove all of a resource's inferred trait assertions from the graphdb
+* `erase` - remove all of a resource's inferred trait assertions from the graphdb
 
 The choice of command, and any parameters, are communicated via
 the `rake` syntax `variable=value paint:command`.

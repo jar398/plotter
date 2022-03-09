@@ -109,9 +109,11 @@ class Table
     # Could transfer the file locally...
     raise("Not on local filesystem: #{@url}") unless @path
     dir = @path + ".chunks"
-    if File.exists?(dir)
+    if File.exist?(dir)
+      STDERR.put "Getting .csv files from #{dir}"
       File.glob("#{dir}/*.csv")
-    elsif File.exists?(@path)
+    elsif File.exist?(@path)
+      STDERR.put "Getting single .csv file #{@path}"
       [@path]
     else
       raise("Cannot find any csv files for #{@path}")
@@ -205,7 +207,7 @@ class Table
 
   def split(chunk_size = 100000)
     raise "Local path not specified for table" unless @path
-    raise "No CSV file for table: #{@path}" unless File.exists?(@path)
+    raise "No CSV file for table: #{@path}" unless File.exist?(@path)
     dir = @path + ".chunks"
     FileUtils.mkdir_p(dir)
 
