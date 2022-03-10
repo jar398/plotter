@@ -353,7 +353,7 @@ class Painter
 
   def publish(resource = @resource)
     url = resource.staging_url(File.join(inf_dir, "inferences.csv"))
-    puts "# Staging URL is #{url}"
+    puts "# Staging URL prefix is #{url}"
 
     # only file in directory, for now
     table = Table.new(url: "#{url}")
